@@ -1,0 +1,26 @@
+version = "v1.0"
+
+[common]
+pmspath = "/home/shouqiang/xinjie/www/api-ngx/static/pms" #笔记流存放路径
+ndscloudscheme = "ws"
+ndsclouddomain = "local.cc.ndmooc.com"
+
+[redis]
+host = "172.17.0.2"
+port = 6379
+auth = ""
+db = 2
+
+[oauth2]
+clientid = "ndmooc_go"
+clientsecret = "8f8d55dd-d640-42cd-8411-f808e06d1aee"
+authorizeapi = "http://local.account.ndmooc.com/v1/oauth2/authorize"
+tokenapi = "http://test.account.ndmooc.com/v1/oauth2/token"
+tokeninfoapi = "http://test.account.ndmooc.com/v1/oauth2/userinfo"
+clienttokenkey = "oauth2:token:cache:clientcredentials"
+passwdtokenkey = "oauth2:token:cache:password"
+
+[api]
+domain = "http://test.api.ndmooc.com"
+unitinfo = "http://test.api.ndmooc.com/v1/units/:unit_id/get"
+unitidentity = "http://test.api.ndmooc.com/v1/units/:unit_id/users/:uid/detail"
