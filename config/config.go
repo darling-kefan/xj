@@ -13,6 +13,7 @@ type TomlConfig struct {
 	Redis   RedisInfo
 	OAuth2  OAuth2
 	Api     Api
+	Cc      Cc
 }
 
 type CommonInfo struct {
@@ -42,6 +43,11 @@ type Api struct {
 	Domain       string
 	UnitInfo     string
 	UnitIdentity string
+}
+
+type Cc struct {
+	Domain string
+	Wsapi  string
 }
 
 var Config *TomlConfig

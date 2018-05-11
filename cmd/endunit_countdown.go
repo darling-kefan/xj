@@ -10,9 +10,11 @@ package main
 // > C-c结束进程，需终止所有goroutine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -24,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/gorilla/websocket"
 
 	"github.com/darling-kefan/xj/config"
 	"github.com/darling-kefan/xj/helper"
@@ -31,8 +34,8 @@ import (
 
 const (
 	scanPrefix    string        = "nc:chan:unit:run:"
-	scanPeriod    time.Duration = 1 * time.Second
-	monitorPeriod time.Duration = 1 * time.Second
+	scanPeriod    time.Duration = 60 * time.Second
+	monitorPeriod time.Duration = 10 * time.Second
 )
 
 // 管理所有监测中的单元
@@ -119,7 +122,20 @@ func endUnit(ctx context.Context, bus *Bus, unitid string) error {
 	// 在监控中心移除该单元
 	bus.Remove(unitid)
 
+	// 获取token
+	token, err := helper.AccessToken(redconn, "client_credentials", nil)
+	if err != nil {
+		return err
+	}
+
 	// 通知云中控单元结束
+	wsapi := strings.Replace(strings.Replace(config.Config.Cc.Wsapi, ":unit_id", unitid, -1), ":token", token, -1)
+	c, _, err := websocket.DefaultDialer.Dial(wsapi, nil)
+	if err != nil {
+		log.Fatal("dial: ", err)
+	}
+	defer c.Close()
+
 	endunitPacket := EndUnitPacket{
 		Act:  "12",
 		From: "0:endunit_countdown.go",
@@ -133,20 +149,22 @@ func endUnit(ctx context.Context, bus *Bus, unitid string) error {
 	if err != nil {
 		return err
 	}
-	subchan := "nc:chan:all:" + unitid
-	if _, err = redconn.Do("PUBLISH", subchan, string(b)); err != nil {
-		return err
+	err = c.WriteMessage(websocket.TextMessage, []byte(b))
+	if err != nil {
+		log.Fatal(err)
 	}
-	log.Println("publish", subchan, string(b))
 
 	// 通知Canvas单元结束
-	token, err := helper.AccessToken(redconn, "client_credentials", nil)
+	api := config.Config.Api.Domain + "/v1/units/:unit_id/status?token=:token"
+	api = strings.Replace(strings.Replace(api, ":unit_id", unitid, -1), ":token", token, -1)
+	payload := []byte(`{"status": 2}`)
+	req, err := http.NewRequest("POST", api, bytes.NewBuffer(payload))
 	if err != nil {
 		return err
 	}
-	api := config.Config.Api.Domain + "/v1/units/:unit_id/status?token=:token"
-	api = strings.Replace(strings.Replace(api, ":unit_id", unitid, -1), ":token", token, -1)
-	resp, err := http.Get(api)
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -196,10 +214,6 @@ func monitor(ctx context.Context, bus *Bus) {
 					log.Println(err)
 					return
 				}
-				// TODO test suit
-				//if err := endUnit(ctx, bus, unitid); err != nil {
-				//	log.Println(err)
-				//}
 				if !isExists {
 					if err := endUnit(ctx, bus, unitid); err != nil {
 						log.Println(err)

@@ -2,8 +2,8 @@ version = "v1.0"
 
 [common]
 pmspath = "/home/shouqiang/xinjie/www/api-ngx/static/pms" #笔记流存放路径
-ndscloudscheme = "ws"
-ndsclouddomain = "local.cc.ndmooc.com"
+ndscloudscheme = "wss"
+ndsclouddomain = "cc.ndmooc.com"
 
 [redis]
 host = "172.17.0.2"
@@ -14,13 +14,17 @@ db = 2
 [oauth2]
 clientid = "ndmooc_go"
 clientsecret = "8f8d55dd-d640-42cd-8411-f808e06d1aee"
-authorizeapi = "http://local.account.ndmooc.com/v1/oauth2/authorize"
-tokenapi = "http://test.account.ndmooc.com/v1/oauth2/token"
-tokeninfoapi = "http://test.account.ndmooc.com/v1/oauth2/userinfo"
+authorizeapi = "https://account.ndmooc.com/v1/oauth2/authorize"
+tokenapi = "https://account.ndmooc.com/v1/oauth2/token"
+tokeninfoapi = "https://account.ndmooc.com/v1/oauth2/userinfo"
 clienttokenkey = "oauth2:token:cache:clientcredentials"
 passwdtokenkey = "oauth2:token:cache:password"
 
 [api]
-domain = "http://test.api.ndmooc.com"
-unitinfo = "http://test.api.ndmooc.com/v1/units/:unit_id/get"
-unitidentity = "http://test.api.ndmooc.com/v1/units/:unit_id/users/:uid/detail"
+domain = "https://api.ndmooc.com"
+unitinfo = "https://api.ndmooc.com/v1/units/:unit_id/get"
+unitidentity = "https://api.ndmooc.com/v1/units/:unit_id/users/:uid/detail"
+
+[cc]
+domain = "https://cc.ndmooc.com"
+wsapi = "wss://cc.ndmooc.com/v2/ngx/center/units/:unit_id/?token=:token"
