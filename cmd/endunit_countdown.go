@@ -8,13 +8,16 @@ package main
 //
 // 注意点：
 // > C-c结束进程，需终止所有goroutine
+//
+// go run endunit_countdown.go --config_file_path="/home/shouqiang/go/src/github.com/darling-kefan/xj"
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"flag"
+	//"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -209,6 +212,7 @@ func monitor(ctx context.Context, bus *Bus) {
 			log.Println("monitor goroutine, debug..........", bus.units)
 			for unitid, _ := range bus.units {
 				key := scanPrefix + unitid
+				// TODO 此处是根据时间判断，改成ttl方式根据已过时间来判断
 				isExists, err := redis.Bool(redconn.Do("EXISTS", key))
 				if err != nil {
 					log.Println(err)
@@ -227,6 +231,14 @@ func monitor(ctx context.Context, bus *Bus) {
 func main() {
 	// Set log format
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// 加载配置文件
+	configFilePath := flag.String("config_file_path", "", "The config file path.(Required)")
+	flag.Parse()
+	if *configFilePath == "" {
+		log.Fatal("config_file_path is required.")
+	}
+	config.Load(*configFilePath)
 
 	defer func() {
 		log.Println("main goroutine is exit!")

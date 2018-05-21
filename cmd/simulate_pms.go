@@ -1,13 +1,12 @@
 // 脚本执行
 // go run simulate_pms.go --unitid A16 --username tangshouqiang --password 123456
-// go run simulate_pms.go --unitid A16 --username tangshouqiang --password 123456
 
 package main
 
 import (
 	"bytes"
 	"encoding/binary"
-	//"encoding/json"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -24,9 +23,9 @@ import (
 )
 
 var unitid = flag.String("unitid", "", "unit id")
-
-//var username = flag.String("username", "", "username")
-//var password = flag.String("password", "", "password")
+var username = flag.String("username", "", "username")
+var password = flag.String("password", "", "password")
+var configFilePath = flag.String("config_file_path", "", "The config file path.(Required)")
 
 type BasicMsg struct {
 	Typ byte    // 1字节整数
@@ -41,7 +40,7 @@ func rcuMsg(act byte) (bts []byte, err error) {
 		Act: act,
 	}
 
-	var uid int64 = 129
+	var uid int64 = 27
 	buf := new(bytes.Buffer)
 	if err = binary.Write(buf, binary.BigEndian, uid); err != nil {
 		return nil, err
@@ -73,7 +72,7 @@ func registerMsg() (bts []byte, err error) {
 	msg.Typ = 1
 	msg.Act = 1
 
-	var uid int64 = 129
+	var uid int64 = 94
 	buf := new(bytes.Buffer)
 	if err = binary.Write(buf, binary.BigEndian, uid); err != nil {
 		return nil, err
@@ -113,8 +112,8 @@ func registerMsg() (bts []byte, err error) {
 
 type UpdateMsg struct {
 	BasicMsg
-	R    byte // 2字节整数
-	G    byte // 2字节整数
+	R    byte // 1字节整数
+	G    byte // 1字节整数
 	B    byte // 1字节整数
 	Size byte // 1字节整数
 }
@@ -128,7 +127,7 @@ func updateMsg() (bts []byte, err error) {
 	msg.B = 0
 	msg.Size = 2
 
-	var uid int64 = 129
+	var uid int64 = 94
 	buf := new(bytes.Buffer)
 	if err = binary.Write(buf, binary.BigEndian, uid); err != nil {
 		return nil, err
@@ -164,7 +163,7 @@ func coordinateMsg() (bts []byte, err error) {
 
 	buf := new(bytes.Buffer)
 
-	var uid int64 = 129
+	var uid int64 = 94
 	if err = binary.Write(buf, binary.BigEndian, uid); err != nil {
 		return nil, err
 	}
@@ -204,6 +203,12 @@ func main() {
 	flag.Parse()
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
+	// 加载配置文件
+	if *configFilePath == "" {
+		log.Fatal("config_file_path is required.")
+	}
+	config.Load(*configFilePath)
+
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
@@ -226,20 +231,20 @@ func main() {
 	}
 
 	// OAuth2 使用用户凭证授权方式获取token
-	//params := make(map[string]interface{}, 2)
-	//params["username"] = *username
-	//params["password"] = *password
-	//token, err := helper.AccessToken(redconn, "password", params)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+	params := make(map[string]interface{}, 2)
+	params["username"] = *username
+	params["password"] = *password
+	token, err := helper.AccessToken(redconn, "password", params)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// OAuth2 使用用客户端授权方式获取token
-	token, err := helper.AccessToken(redconn, "client_credentials", nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	//token, err := helper.AccessToken(redconn, "client_credentials", nil)
+	//if err != nil {
+	//	log.Println(err)
+	//	return
+	//}
 
 	v := url.Values{}
 	v.Set("token", token)
@@ -260,20 +265,20 @@ func main() {
 	defer c.Close()
 
 	// 注册
-	//reg := map[string]string{
-	//	"act": "1",
-	//	"os":  "1",
-	//	"vi":  "1",
-	//	"hw":  "0",
-	//}
-	//regjson, err := json.Marshal(reg)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//err = c.WriteMessage(websocket.TextMessage, []byte(regjson))
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+	reg := map[string]string{
+		"act": "1",
+		"os":  "1",
+		"vi":  "1",
+		"hw":  "0",
+	}
+	regjson, err := json.Marshal(reg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = c.WriteMessage(websocket.TextMessage, []byte(regjson))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	done := make(chan struct{})
 	go func() {
@@ -288,7 +293,7 @@ func main() {
 		}
 	}()
 
-	// 发送注册指令
+	// 发送笔迹注册指令
 	regbytes, err := registerMsg()
 	if err != nil {
 		log.Println(err)
@@ -300,7 +305,7 @@ func main() {
 		return
 	}
 
-	// 发送更新指令
+	// 发送笔迹更新指令
 	updatebytes, err := updateMsg()
 	if err != nil {
 		log.Println(err)

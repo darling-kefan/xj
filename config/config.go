@@ -52,8 +52,13 @@ type Cc struct {
 
 var Config *TomlConfig
 
-func init() {
-	b, err := ioutil.ReadFile("../.ndscloud.toml")
+func Load(filepath string) {
+	if filepath == "" {
+		filepath = "./.ndscloud.toml"
+	} else {
+		filepath = filepath + "/.ndscloud.toml"
+	}
+	b, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		log.Fatal(err)
 	}

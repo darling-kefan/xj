@@ -56,7 +56,7 @@ func (h *Hub) add(clients ...*Client) {
 	for _, client := range clients {
 		h.clients[client.ID] = client
 
-		if ids, ok := h.unitoids[client.UnitId]; ok {
+		if ids, ok := h.unittoids[client.UnitId]; ok {
 			// 防止ID重复，首先判断ID是否已经存在, 如果不存在则写入。
 			isIn := false
 			for _, id := range ids {
@@ -81,7 +81,7 @@ func (h *Hub) remove(clients ...*Client) {
 
 	for _, client := range clients {
 		if _, ok := h.clients[client.ID]; ok {
-			delete(h.clients[client.ID])
+			delete(h.clients, client.ID)
 			// close client websocket connection
 			close(client.outbound)
 		}
@@ -108,7 +108,7 @@ func (h *Hub) removebyunitid(unitid string) {
 			close(h.clients[id].outbound)
 			delete(h.clients, id)
 		}
-		delete(h.unittoids[unitid])
+		delete(h.unittoids, unitid)
 	}
 }
 

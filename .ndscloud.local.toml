@@ -14,16 +14,16 @@ db = 2
 [oauth2]
 clientid = "ndmooc_go"
 clientsecret = "8f8d55dd-d640-42cd-8411-f808e06d1aee"
-authorizeapi = "http://test.account.ndmooc.com/v1/oauth2/authorize"
-tokenapi = "http://test.account.ndmooc.com/v1/oauth2/token"
-tokeninfoapi = "http://test.account.ndmooc.com/v1/oauth2/userinfo"
+authorizeapi = "http://local.account.ndmooc.com/v1/oauth2/authorize"
+tokenapi = "http://local.account.ndmooc.com/v1/oauth2/token"
+tokeninfoapi = "http://local.account.ndmooc.com/v1/oauth2/userinfo"
 clienttokenkey = "oauth2:token:cache:clientcredentials"
 passwdtokenkey = "oauth2:token:cache:password"
 
 [api]
-domain = "http://test.api.ndmooc.com"
-unitinfo = "http://test.api.ndmooc.com/v1/units/:unit_id/get"
-unitidentity = "http://test.api.ndmooc.com/v1/units/:unit_id/users/:uid/detail"
+domain = "http://local.api.ndmooc.com"
+unitinfo = "http://local.api.ndmooc.com/v1/units/:unit_id/get"
+unitidentity = "http://local.api.ndmooc.com/v1/units/:unit_id/users/:uid/detail"
 
 [cc]
 domain = "http://local.cc.ndmooc.com"

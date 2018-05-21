@@ -1,8 +1,11 @@
 // Scan Redis中所有单元id，判断单元是否在进行中；如果不在进行中，则清理该单元下的所有在线用户记录
+//
+// go run cleanup_unit.go --config_file_path="/home/shouqiang/go/src/github.com/darling-kefan/xj"
 package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -30,6 +33,14 @@ type RD struct {
 func init() {
 	// 设置日志格式
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// 加载配置文件
+	configFilePath := flag.String("config_file_path", "", "The config file path.(Required)")
+	flag.Parse()
+	if *configFilePath == "" {
+		log.Fatal("config_file_path is required.")
+	}
+	config.Load(*configFilePath)
 
 	redconf := config.Config.Redis
 	address := redconf.Host + ":" + strconv.Itoa(redconf.Port)

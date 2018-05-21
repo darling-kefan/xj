@@ -1,6 +1,7 @@
 // 脚本执行
 // go run simulate_pms.go --unitid A16 --username tangshouqiang --password 123456
 // go run read_pms.go --unitid A16
+// go run read_pms.go --config_file_path="/home/shouqiang/go/src/github.com/darling-kefan/xj" --unitid="A16"
 
 package main
 
@@ -20,11 +21,19 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var unitid = flag.String("unitid", "", "unit id")
+var unitid = flag.String("unitid", "", "unit id.(Required)")
+var configFilePath = flag.String("config_file_path", "", "The config file path.(Required)")
 
 func main() {
-	flag.Parse()
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	flag.Parse()
+
+	// 加载配置文件
+	if *configFilePath == "" {
+		log.Fatal("config_file_path is required.")
+	}
+	config.Load(*configFilePath)
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -80,11 +89,18 @@ func main() {
 				log.Println("read:", err, message)
 				return
 			}
-			log.Printf("recv: %s", message)
+			log.Printf("recv: % x", message)
 		}
 	}()
 
-	ticker := time.NewTicker(time.Second)
+	err = c.WriteMessage(websocket.TextMessage, []byte(`{"act":"13","get":"A"}`))
+	if err != nil {
+		log.Println("write:", err)
+		return
+	}
+	log.Println("write websocket message...........")
+
+	ticker := time.NewTicker(300 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -93,8 +109,8 @@ func main() {
 			fmt.Println("Bye!")
 			return
 		case <-ticker.C:
-			// 发送接收笔迹流指令
-			err := c.WriteMessage(websocket.TextMessage, []byte(`{"act":"13","get":"A@129"}`))
+			// 每隔一段时间，发送接收笔迹流指令
+			err := c.WriteMessage(websocket.TextMessage, []byte(`{"act":"13","get":"A"}`))
 			if err != nil {
 				log.Println("write:", err)
 				return

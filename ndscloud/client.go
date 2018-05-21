@@ -2,8 +2,10 @@ package ndscloud
 
 import (
 	"bytes"
+	"log"
 	"time"
 
+	"github.com/darling-kefan/xj/helper"
 	"github.com/gorilla/websocket"
 )
 
@@ -53,6 +55,28 @@ type Client struct {
 	UnitInfo map[string]interface{}
 }
 
+func NewClient(token string, unitId string, conn *websocket.Conn, hub *Hub) (client *Client, err error) {
+	// 获取系统token
+	systoken, err := helper.AccessToken(redconn, "client_credentials", nil)
+
+	// 获取单元信息
+	unitInfo, err := getUnitInfo(systoken, unitId)
+	if err != nil {
+		return nil, err
+	}
+	log.Println(unitInfo, err)
+
+	// 验证Token
+
+	// 获取
+	client = &Client{
+		hub:      hub,
+		conn:     conn,
+		outbound: make(chan []byte, 256),
+	}
+	return
+}
+
 // readPump pumps messages from the websocket connection to the hub.
 //
 // The application runs readPump in a per-connection goroutine. The application
@@ -79,6 +103,7 @@ func (c *Client) readPump() {
 			}
 			break
 		}
+		log.Println(messageType, message, err)
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		c.hub.inbound <- message
 	}
@@ -105,7 +130,7 @@ func (c *Client) writePump() {
 				return
 			}
 
-			w, err := c.conn.NewWriter(websocket.TextMessage)
+			w, err := c.conn.NextWriter(websocket.TextMessage)
 			if err != nil {
 				return
 			}
@@ -115,7 +140,7 @@ func (c *Client) writePump() {
 			n := len(c.outbound)
 			for i := 0; i < n; i++ {
 				w.Write(newline)
-				w.Write(<-c.send)
+				w.Write(<-c.outbound)
 			}
 
 			if err := w.Close(); err != nil {

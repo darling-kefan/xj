@@ -1,8 +1,9 @@
 // 持久化笔迹流到文件
-// TODO 改成守护进程多协程的方式保存笔迹流
+// 改成守护进程多协程的方式保存笔迹流
 //
 // go run persistent_pms.go del --unit_id=A16 --scene_id=3 --uid=123 // 删除笔迹流
 // go run persistent_pms.go save // 保存笔迹流
+// go run persistent_pms.go save --config_file_path="/home/shouqiang/go/src/github.com/darling-kefan/xj"
 package main
 
 import (
@@ -45,6 +46,10 @@ func main() {
 	unitidPtr := delCmd.String("unit_id", "", "the unit id.(Required)")
 	sceneidPtr := delCmd.Int("scene_id", 0, "the scene id of unit.(Required)")
 	uidPtr := delCmd.Int("uid", 0, "the user id.(Required)")
+	delConfPathPtr := delCmd.String("config_file_path", "", "The config file path.(Required)")
+
+	// Save subcommand flag pointers
+	saveConfPathPtr := saveCmd.String("config_file_path", "", "The config file path.(Required)")
 
 	// Verify that a subcommand has been provided
 	if len(os.Args) < 2 {
@@ -63,6 +68,18 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+
+	// 加载配置文件
+	var configFilePath string
+	if *saveConfPathPtr != "" {
+		configFilePath = *saveConfPathPtr
+	} else if *delConfPathPtr != "" {
+		configFilePath = *delConfPathPtr
+	}
+	if configFilePath == "" {
+		log.Fatal("config_file_path is required.")
+	}
+	config.Load(configFilePath)
 
 	redconf := config.Config.Redis
 	address := redconf.Host + ":" + strconv.Itoa(redconf.Port)
