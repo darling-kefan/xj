@@ -1,6 +1,7 @@
 package ndscloud
 
 import (
+	"log"
 	"sync"
 )
 
@@ -24,8 +25,11 @@ type Hub struct {
 	// The lock used for Hub.clients and Hub.unittoids
 	mutex sync.RWMutex
 
-	// Inbound messages from the clients.
+	// Inbound messages from the clients. Handle ordinary text messages.
 	inbound chan []byte
+
+	// Penmanship binary stream.
+	inbound_pms chan []byte
 
 	// Register requests from the clients.
 	register chan *Client
@@ -39,12 +43,13 @@ type Hub struct {
 
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[string]*Client),
-		unittoids:  make(map[string][]string),
-		inbound:    make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		endunit:    make(chan string),
+		clients:     make(map[string]*Client),
+		unittoids:   make(map[string][]string),
+		inbound:     make(chan []byte),
+		inbound_pms: make(chan []byte),
+		register:    make(chan *Client),
+		unregister:  make(chan *Client),
+		endunit:     make(chan string),
 	}
 }
 
@@ -71,6 +76,8 @@ func (h *Hub) add(clients ...*Client) {
 		} else {
 			h.unittoids[client.UnitId] = []string{client.ID}
 		}
+
+		log.Println(h.clients, h.unittoids)
 	}
 }
 
@@ -81,9 +88,9 @@ func (h *Hub) remove(clients ...*Client) {
 
 	for _, client := range clients {
 		if _, ok := h.clients[client.ID]; ok {
-			delete(h.clients, client.ID)
 			// close client websocket connection
 			close(client.outbound)
+			delete(h.clients, client.ID)
 		}
 
 		if ids, ok := h.unittoids[client.UnitId]; ok {
@@ -110,6 +117,26 @@ func (h *Hub) removebyunitid(unitid string) {
 		}
 		delete(h.unittoids, unitid)
 	}
+}
+
+// 判断客户端是否存在
+func (h *Hub) exists(client *Client) bool {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	_, ok := h.clients[client.ID]
+	return ok
+}
+
+// 根据id获取客户端
+func (h *Hub) get(id string) (client *Client) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	if client, ok := h.clients[id]; ok {
+		return client
+	}
+	return nil
 }
 
 // Parse packet

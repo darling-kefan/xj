@@ -3,9 +3,11 @@ package ndscloud
 import (
 	"bytes"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/darling-kefan/xj/helper"
+	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 )
 
@@ -36,6 +38,9 @@ type Client struct {
 	// The websocket connection.
 	conn *websocket.Conn
 
+	// The redis connection.
+	redconn redis.Conn
+
 	// Buffered channel of outbound messages.
 	outbound chan []byte
 
@@ -48,14 +53,18 @@ type Client struct {
 	// The identity of the client.
 	Identity int
 
-	// The client details.
-	Info map[string]interface{}
+	// The client details. *UserInfo or *DeviceInfo
+	Info interface{}
 
 	// The unit details.
-	UnitInfo map[string]interface{}
+	UnitInfo *UnitInfo
+
+	// The stage of the client.
+	// false: not registered; true: registered
+	IsRegistered bool
 }
 
-func NewClient(token string, unitId string, conn *websocket.Conn, hub *Hub) (client *Client, err error) {
+func NewClient(token string, unitId string, redconn redis.Conn, conn *websocket.Conn, hub *Hub) (client *Client, err error) {
 	// 获取系统token
 	systoken, err := helper.AccessToken(redconn, "client_credentials", nil)
 
@@ -64,17 +73,62 @@ func NewClient(token string, unitId string, conn *websocket.Conn, hub *Hub) (cli
 	if err != nil {
 		return nil, err
 	}
-	log.Println(unitInfo, err)
 
 	// 验证Token
+	tokenInfo, err := getTokenInfo(token)
+	if err != nil {
+		return nil, err
+	}
+
+	var id string
+	var identity int
+
+	if userInfo, ok := tokenInfo.(*UserInfo); ok {
+		id = userInfo.Uid
+		// 获取用户在课程单元中的身份
+		unitidt, err := getUnitidt(systoken, unitId, userInfo.Uid)
+		if err != nil {
+			return nil, err
+		}
+		if unitidt.Identity != "" {
+			identity, _ = strconv.Atoi(unitidt.Identity)
+		}
+	}
+
+	if deviceInfo, ok := tokenInfo.(*DeviceInfo); ok {
+		// client_id作为设备id
+		id = deviceInfo.ClientId
+	}
 
 	// 获取
 	client = &Client{
 		hub:      hub,
 		conn:     conn,
+		redconn:  redconn,
 		outbound: make(chan []byte, 256),
+		ID:       id,
+		UnitId:   unitId,
+		Identity: identity,
+		Info:     tokenInfo,
+		UnitInfo: unitInfo,
 	}
 	return
+}
+
+// Forced login. Force other terminals to disconnect.
+func (c *Client) forceLogin() {
+	// Judging whether to login
+	if c.hub.exists(c) {
+		// 1. 获取登录中的客户端，并向该客户端发送强制退出消息
+		loginClient := c.hub.get(c.ID)
+		loginClient.conn.SetWriteDeadline(time.Now().Add(writeWait))
+		loginClient.conn.WriteMessage(websocket.TextMessage, []byte(`{"errcode":1, "errmsg":"forced logout"}`))
+
+		// 2. 退出登录中的客户端
+		c.hub.unregister <- loginClient
+	}
+	// 3. 新客户端登录
+	c.hub.register <- c
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -84,8 +138,11 @@ func NewClient(token string, unitId string, conn *websocket.Conn, hub *Hub) (cli
 // read from this goroutine.
 func (c *Client) readPump() {
 	defer func() {
-		c.hub.unregister <- c
+		if c == c.hub.get(c.ID) {
+			c.hub.unregister <- c
+		}
 		c.conn.Close()
+		log.Println("End readPump")
 	}()
 	// Set the maximum size for a message read from the peer.
 	// https://godoc.org/github.com/gorilla/websocket#Conn.SetReadLimit
@@ -119,6 +176,7 @@ func (c *Client) writePump() {
 	defer func() {
 		ticker.Stop()
 		c.conn.Close()
+		log.Println("End writePump")
 	}()
 	for {
 		select {
