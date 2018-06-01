@@ -1,5 +1,5 @@
 // 脚本执行
-// go run simulate_pms.go --unitid A16 --username tangshouqiang --password 123456
+// go run simulate_pms.go --config_file_path "/home/shouqiang/go/src/github.com/darling-kefan/xj" --unitid A16 --username tangshouqiang --password 123456
 
 package main
 

@@ -12,15 +12,15 @@ package main
 // go run endunit_countdown.go --config_file_path="/home/shouqiang/go/src/github.com/darling-kefan/xj"
 
 import (
-	"bytes"
+	//"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	//"errors"
 	"flag"
-	//"fmt"
-	"io/ioutil"
+	"fmt"
+	//"io/ioutil"
 	"log"
-	"net/http"
+	//"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -37,13 +37,13 @@ import (
 
 const (
 	scanPrefix    string        = "nc:chan:unit:run:"
-	scanPeriod    time.Duration = 60 * time.Second
-	monitorPeriod time.Duration = 10 * time.Second
+	scanPeriod    time.Duration = 5 * time.Second
+	monitorPeriod time.Duration = 1 * time.Second
 )
 
 // 管理所有监测中的单元
 type Bus struct {
-	units map[string]bool
+	unitscenes map[string]bool
 	// 读写锁
 	mutex *sync.RWMutex
 	// Worker goroutine tells the main goroutine quited
@@ -55,7 +55,7 @@ type Bus struct {
 // 实例化Bus
 func NewBus() *Bus {
 	return &Bus{
-		units: make(map[string]bool),
+		unitscenes: make(map[string]bool),
 		// 注意：此处一定要初始化
 		mutex: new(sync.RWMutex),
 		done:  make(chan struct{}),
@@ -63,25 +63,25 @@ func NewBus() *Bus {
 	}
 }
 
-// 判断该unitid是否在监测中
-func (b *Bus) In(unitid string) bool {
+// 判断该unitscene是否在监测中
+func (b *Bus) In(unitscene string) bool {
 	b.mutex.RLock()
-	_, isIn := b.units[unitid]
+	_, isIn := b.unitscenes[unitscene]
 	b.mutex.RUnlock()
 	return isIn
 }
 
 // 将单元添加到监控中
-func (b *Bus) Add(unitid string) {
+func (b *Bus) Add(unitscene string) {
 	b.mutex.Lock()
-	b.units[unitid] = true
+	b.unitscenes[unitscene] = true
 	b.mutex.Unlock()
 }
 
 // 将单元从监控中移除
-func (b *Bus) Remove(unitid string) {
+func (b *Bus) Remove(unitscene string) {
 	b.mutex.Lock()
-	delete(b.units, unitid)
+	delete(b.unitscenes, unitscene)
 	b.mutex.Unlock()
 }
 
@@ -118,12 +118,9 @@ type EndUnitPacket struct {
 }
 
 // 结束单元
-func endUnit(ctx context.Context, bus *Bus, unitid string) error {
+func endUnit(ctx context.Context, bus *Bus, unitid string, isEndCloud bool) error {
 	// redis实例
 	redconn := ctx.Value("redisPool").(*redis.Pool).Get()
-
-	// 在监控中心移除该单元
-	bus.Remove(unitid)
 
 	// 获取token
 	token, err := helper.AccessToken(redconn, "client_credentials", nil)
@@ -131,64 +128,66 @@ func endUnit(ctx context.Context, bus *Bus, unitid string) error {
 		return err
 	}
 
-	// 通知云中控单元结束
-	wsapi := strings.Replace(strings.Replace(config.Config.Cc.Wsapi, ":unit_id", unitid, -1), ":token", token, -1)
-	c, _, err := websocket.DefaultDialer.Dial(wsapi, nil)
-	if err != nil {
-		log.Fatal("dial: ", err)
-	}
-	defer c.Close()
+	if !isEndCloud {
+		// 通知云中控单元结束
+		wsapi := strings.Replace(strings.Replace(config.Config.Cc.Wsapi, ":unit_id", unitid, -1), ":token", token, -1)
+		c, _, err := websocket.DefaultDialer.Dial(wsapi, nil)
+		if err != nil {
+			log.Fatal("dial: ", err)
+		}
+		defer c.Close()
 
-	endunitPacket := EndUnitPacket{
-		Act:  "12",
-		From: "0:endunit_countdown.go",
-		Msg: struct {
-			Stat string `json:"stat"`
-		}{
-			Stat: "2",
-		},
-	}
-	b, err := json.Marshal(endunitPacket)
-	if err != nil {
-		return err
-	}
-	err = c.WriteMessage(websocket.TextMessage, []byte(b))
-	if err != nil {
-		log.Fatal(err)
+		endunitPacket := EndUnitPacket{
+			Act:  "12",
+			From: "0:endunit_countdown.go",
+			Msg: struct {
+				Stat string `json:"stat"`
+			}{
+				Stat: "2",
+			},
+		}
+		b, err := json.Marshal(endunitPacket)
+		if err != nil {
+			return err
+		}
+		err = c.WriteMessage(websocket.TextMessage, []byte(b))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// 通知Canvas单元结束
-	api := config.Config.Api.Domain + "/v1/units/:unit_id/status?token=:token"
-	api = strings.Replace(strings.Replace(api, ":unit_id", unitid, -1), ":token", token, -1)
-	payload := []byte(`{"status": 2}`)
-	req, err := http.NewRequest("POST", api, bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	log.Println(api, string(body))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	type Response struct {
-		Errcode int    `json:"errcode"`
-		Errmsg  string `json:"errmsg"`
-	}
-	var response Response
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		return err
-	}
-	if response.Errcode != 0 {
-		return errors.New(response.Errmsg)
-	}
+	//api := config.Config.Api.Domain + "/v1/units/:unit_id/status?token=:token"
+	//api = strings.Replace(strings.Replace(api, ":unit_id", unitid, -1), ":token", token, -1)
+	//payload := []byte(`{"status": 2}`)
+	//req, err := http.NewRequest("POST", api, bytes.NewBuffer(payload))
+	//if err != nil {
+	//	return err
+	//}
+	//req.Header.Set("Content-Type", "application/json")
+	//client := &http.Client{}
+	//resp, err := client.Do(req)
+	//if err != nil {
+	//	return err
+	//}
+	//body, err := ioutil.ReadAll(resp.Body)
+	//log.Println(api, string(body))
+	//if err != nil {
+	//	return err
+	//}
+	//defer resp.Body.Close()
+	//type Response struct {
+	//	Errcode int    `json:"errcode"`
+	//	Errmsg  string `json:"errmsg"`
+	//}
+	//var response Response
+	//err = json.Unmarshal(body, &response)
+	//if err != nil {
+	//	return err
+	//}
+	//if response.Errcode != 0 {
+	//	return errors.New(response.Errmsg)
+	//}
 	return nil
 }
 
@@ -209,17 +208,38 @@ func monitor(ctx context.Context, bus *Bus) {
 		case <-bus.kill:
 			return
 		case <-ticker.C:
-			log.Println("monitor goroutine, debug..........", bus.units)
-			for unitid, _ := range bus.units {
-				key := scanPrefix + unitid
-				// TODO 此处是根据时间判断，改成ttl方式根据已过时间来判断
-				isExists, err := redis.Bool(redconn.Do("EXISTS", key))
-				if err != nil {
-					log.Println(err)
-					return
+			log.Println("monitor goroutine, debug..........", bus.unitscenes)
+			for unitscene, _ := range bus.unitscenes {
+				usparts := strings.Split(unitscene, ":")
+				unitid, sceneid := usparts[0], usparts[1]
+
+				// 判断云中控是否已经结束课程
+				isEndCloud := false
+				scenekey := fmt.Sprintf("nc:unit:scene:%s:%s", unitid, sceneid)
+				scenebytes, _ := redis.Bytes(redconn.Do("GET", scenekey))
+				if len(scenebytes) > 0 {
+					var sceneinfo struct {
+						Endtime float64 `json:"end_time"`
+					} = struct {
+						Endtime float64 `json:"end_time"`
+					}{}
+					err := json.Unmarshal(scenebytes, &sceneinfo)
+					if err != nil {
+						log.Println(err)
+					}
+					if sceneinfo.Endtime > 0 {
+						isEndCloud = true
+					}
 				}
-				if !isExists {
-					if err := endUnit(ctx, bus, unitid); err != nil {
+
+				// 此处是根据时间判断，改成ttl方式根据已过时间来判断
+				// 3600-ttl >= 3600，第一个3600在lua中确定的，第二个3600由业务确定
+				runkey := scanPrefix + unitscene
+				ttl, _ := redis.Int(redconn.Do("TTL", runkey))
+				if ttl == -2 || (ttl >= 0 && 3600-ttl >= 3600) {
+					// 在监控中心移除该单元
+					bus.Remove(unitscene)
+					if err := endUnit(ctx, bus, unitid, isEndCloud); err != nil {
 						log.Println(err)
 					}
 				}

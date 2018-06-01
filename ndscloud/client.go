@@ -1,19 +1,14 @@
 package ndscloud
 
 import (
-	"bytes"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/darling-kefan/xj/helper"
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
-)
-
-var (
-	newline = []byte{'\n'}
-	space   = []byte{' '}
 )
 
 const (
@@ -45,23 +40,47 @@ type Client struct {
 	outbound chan []byte
 
 	// Used to uniquely identity users and devices.
-	ID string
+	id string
 
 	// Unit ID. Each client can only belong to one unit at a time.
-	UnitId string
+	unitId string
 
 	// The identity of the client.
-	Identity int
+	identity int
 
 	// The client details. *UserInfo or *DeviceInfo
-	Info interface{}
+	info interface{}
 
 	// The unit details.
-	UnitInfo *UnitInfo
+	unitInfo *UnitInfo
 
 	// The stage of the client.
 	// false: not registered; true: registered
-	IsRegistered bool
+	isRegistered bool
+
+	// 注册时间
+	registeredAt int64
+
+	// 设备类型
+	dt string
+
+	// 用户系统
+	os string
+
+	// 是否支持视频互动
+	vi string
+
+	// 是否支持手写
+	hw string
+
+	// 读写锁(由于其它接口线程会读取LocalUsers和LocalDevices而产生竞争条件，因此需要加锁)
+	mtx sync.RWMutex
+
+	// 本地中控上报的用户
+	localUsers *LocalUserSet
+
+	// 本地中控上报的设备
+	localDevices *LocalDeviceSet
 }
 
 func NewClient(token string, unitId string, redconn redis.Conn, conn *websocket.Conn, hub *Hub) (client *Client, err error) {
@@ -100,19 +119,43 @@ func NewClient(token string, unitId string, redconn redis.Conn, conn *websocket.
 		id = deviceInfo.ClientId
 	}
 
-	// 获取
 	client = &Client{
-		hub:      hub,
-		conn:     conn,
-		redconn:  redconn,
-		outbound: make(chan []byte, 256),
-		ID:       id,
-		UnitId:   unitId,
-		Identity: identity,
-		Info:     tokenInfo,
-		UnitInfo: unitInfo,
+		hub:          hub,
+		conn:         conn,
+		redconn:      redconn,
+		outbound:     make(chan []byte, 256),
+		id:           id,
+		unitId:       unitId,
+		identity:     identity,
+		info:         tokenInfo,
+		unitInfo:     unitInfo,
+		os:           "0",
+		vi:           "0",
+		hw:           "0",
+		localUsers:   NewLocalUserSet(),
+		localDevices: NewLocalDeviceSet(),
 	}
 	return
+}
+
+// Determine if the client is a device
+func (c *Client) isDevice() bool {
+	_, ok := c.info.(*DeviceInfo)
+	return ok
+}
+
+// Determine if the client is a user
+func (c *Client) isUser() bool {
+	_, ok := c.info.(*UserInfo)
+	return ok
+}
+
+// Determine if the client is a local control
+func (c *Client) isLocalControl() bool {
+	if c.dt == "1" {
+		return true
+	}
+	return false
 }
 
 // Forced login. Force other terminals to disconnect.
@@ -120,7 +163,7 @@ func (c *Client) forceLogin() {
 	// Judging whether to login
 	if c.hub.exists(c) {
 		// 1. 获取登录中的客户端，并向该客户端发送强制退出消息
-		loginClient := c.hub.get(c.ID)
+		loginClient := c.hub.get(c.id)
 		loginClient.conn.SetWriteDeadline(time.Now().Add(writeWait))
 		loginClient.conn.WriteMessage(websocket.TextMessage, []byte(`{"errcode":1, "errmsg":"forced logout"}`))
 
@@ -138,7 +181,7 @@ func (c *Client) forceLogin() {
 // read from this goroutine.
 func (c *Client) readPump() {
 	defer func() {
-		if c == c.hub.get(c.ID) {
+		if c == c.hub.get(c.id) {
 			c.hub.unregister <- c
 		}
 		c.conn.Close()
@@ -160,9 +203,23 @@ func (c *Client) readPump() {
 			}
 			break
 		}
-		log.Println(messageType, message, err)
-		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		c.hub.inbound <- message
+
+		switch messageType {
+		case websocket.TextMessage:
+			log.Printf("[%s] receive: %s\n", c.id, string(message))
+			// Message processor
+			c.process(message)
+		case websocket.BinaryMessage:
+
+		case websocket.CloseMessage:
+
+		case websocket.PingMessage:
+
+		case websocket.PongMessage:
+
+		default:
+			log.Println("Unknown messageType: ", messageType)
+		}
 	}
 }
 
@@ -187,23 +244,26 @@ func (c *Client) writePump() {
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
+			c.conn.WriteMessage(websocket.TextMessage, message)
 
-			w, err := c.conn.NextWriter(websocket.TextMessage)
-			if err != nil {
-				return
-			}
-			w.Write(message)
-
-			// Add queued messages to the current websocket message.
-			n := len(c.outbound)
-			for i := 0; i < n; i++ {
-				w.Write(newline)
-				w.Write(<-c.outbound)
-			}
-
-			if err := w.Close(); err != nil {
-				return
-			}
+			// @TODO 由于可能存在多个goroutine同时向终端发送消息，因此此处不适合批量发送消息
+			//// Send messages to terminals in batches
+			//w, err := c.conn.NextWriter(websocket.TextMessage)
+			//if err != nil {
+			//	return
+			//}
+			//w.Write(message)
+			//
+			//// Add queued messages to the current websocket message.
+			//n := len(c.outbound)
+			//for i := 0; i < n; i++ {
+			//	w.Write(newline)
+			//	w.Write(<-c.outbound)
+			//}
+			//
+			//if err := w.Close(); err != nil {
+			//	return
+			//}
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {

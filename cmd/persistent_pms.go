@@ -1,8 +1,10 @@
 // 持久化笔迹流到文件
 // 改成守护进程多协程的方式保存笔迹流
 //
-// go run persistent_pms.go del --unit_id=A16 --scene_id=3 --uid=123 // 删除笔迹流
-// go run persistent_pms.go save // 保存笔迹流
+// 删除笔迹流
+// go run persistent_pms.go del --config_file_path="/home/shouqiang/go/src/github.com/darling-kefan/xj" --unit_id=A16 --scene_id=15 --uid=94
+//
+// 存储笔迹流
 // go run persistent_pms.go save --config_file_path="/home/shouqiang/go/src/github.com/darling-kefan/xj"
 package main
 
@@ -106,13 +108,16 @@ func main() {
 	}
 
 	ctx := context.WithValue(context.Background(), ctxKey("redisPool"), redisPool)
-	usmap, err := getUnitScenes(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	if saveCmd.Parsed() {
 		var wg sync.WaitGroup
+
+		// 获取所有单元场景
+		usmap, err := getUnitScenes(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		// 检查单元是否在进行中
 		for unitid, sceneid := range usmap {
 			// Increment the WaitGroup counter.
@@ -159,14 +164,13 @@ func run(ctx context.Context, wg *sync.WaitGroup, unitid string, sceneid int) {
 
 	running, err := checkUnit(ctx, unitid)
 	if err != nil {
-		log.Printf("%s, break\n", err)
+		log.Printf("[%s:%d] %s, break\n", unitid, sceneid, err)
 		return
 	}
-	log.Println(unitid, sceneid, running, err)
 	if running {
 		// 写入二进制文件
 		if err := writePms(ctx, unitid, sceneid); err != nil {
-			log.Println(err)
+			log.Printf("[%s:%d] %s", unitid, sceneid, err)
 			return
 		}
 	}
@@ -194,6 +198,7 @@ func writePms(ctx context.Context, unitid string, sceneid int) error {
 			break
 		}
 	}
+	log.Printf("[%s:%d] Inks: %#v\n", unitid, sceneid, keys)
 
 	// 遍历所有笔迹流用户，并判断其身份
 	// teapmskey用于存放老师，供笔迹流回看接口使用
@@ -210,11 +215,11 @@ func writePms(ctx context.Context, unitid string, sceneid int) error {
 			continue
 		}
 		if ci != nil {
-			if ci.Identity == 1 {
+			if ci.Identity == "1" {
 				if _, err := red.Do("ZADD", teapmskey, time.Now().Unix(), uid); err != nil {
 					return err
 				}
-				log.Printf("ZADD %s %d %d\n", teapmskey, time.Now().Unix(), uid)
+				log.Printf("[%s:%d] ZADD %s %d %d\n", unitid, sceneid, teapmskey, time.Now().Unix(), uid)
 			}
 		}
 	}
@@ -252,12 +257,14 @@ func writePms(ctx context.Context, unitid string, sceneid int) error {
 			if err != nil {
 				return err
 			}
-			log.Printf("LRANGE %s %d %d\n", pmskey, start, end)
 			for _, pms := range pmses {
 				buf.Write(pms)
 			}
 			if _, err := buf.WriteTo(fp); err != nil {
 				return err
+			}
+			if len(pmses) > 0 {
+				log.Printf("[%s:%d] Append to file: %s %s %d %d\n", unitid, sceneid, pf, pmskey, start, end)
 			}
 			buf.Reset()
 
@@ -269,7 +276,7 @@ func writePms(ctx context.Context, unitid string, sceneid int) error {
 		if _, err := red.Do("SET", startkey, start); err != nil {
 			return err
 		}
-		log.Printf("SET %s %d\n", startkey, start)
+		log.Printf("[%s:%d] Next read offset: SET %s %d\n", unitid, sceneid, startkey, start)
 	}
 
 	return nil
@@ -283,12 +290,17 @@ func deletepms(ctx context.Context, unitid string, sceneid int, uid int) error {
 
 	pmskey := fmt.Sprintf("nc:pms:%s:%d:%d", unitid, sceneid, uid)
 	pmsoffkey := strings.Replace(pmskey, "pms", "pms:offset", -1)
-	if _, err := red.Do("DEL", pmsoffkey); err != nil {
+	res, err := redis.Int64(red.Do("DEL", pmsoffkey))
+	if err != nil {
 		return err
+	}
+	if res == 1 {
+		log.Printf("DEL %s\n", pmsoffkey)
 	}
 	if err := os.Remove(pmsfile(pmskey)); err != nil {
 		return err
 	}
+	log.Printf("Remove file: %s\n", pmsfile(pmskey))
 	return nil
 }
 
@@ -300,9 +312,9 @@ func pmsfile(pmskey string) string {
 }
 
 type CourseIdentity struct {
-	Uid      int
-	Identity int
-	CourseId int
+	Uid      string
+	Identity string
+	CourseId string
 }
 
 // 查询单元身份
@@ -455,5 +467,6 @@ func getUnitScenes(ctx context.Context) (map[string]int, error) {
 			}
 		}
 	}
+	log.Printf("Scan keys: %#v\n", usmap)
 	return usmap, nil
 }

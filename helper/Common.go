@@ -14,3 +14,7 @@ func CurrPath() string {
 	}
 	return dir
 }
+
+func inSlice(element interface{}, array []interface{}) bool {
+	return false
+}

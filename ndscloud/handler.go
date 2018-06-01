@@ -91,7 +91,7 @@ func ServeWs(hub *Hub, c *gin.Context) {
 		tc := time.After(10 * time.Second)
 		select {
 		case <-tc:
-			if client == hub.get(client.ID) && !client.IsRegistered {
+			if client == hub.get(client.id) && !client.isRegistered {
 				hub.unregister <- client
 			}
 		case <-client.outbound:

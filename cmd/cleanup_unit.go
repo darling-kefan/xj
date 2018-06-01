@@ -109,7 +109,7 @@ func (env *Env) getUnits() ([]string, error) {
 		unitlist[i] = unitid
 		i = i + 1
 	}
-	log.Println("units: ", unitlist)
+	log.Printf("Scan units: %#v\n", unitlist)
 	return unitlist, nil
 }
 
@@ -186,11 +186,11 @@ func (env *Env) clearupOnlines(unitid string) error {
 	defer red.Close()
 
 	onlinekey := "nc:onlines:" + unitid
-	ok, err := redis.Bool(red.Do("del", onlinekey))
+	res, err := redis.Int64(red.Do("del", onlinekey))
 	if err != nil {
 		return err
 	}
-	if ok {
+	if res == 1 {
 		log.Printf("DEL %s\n", onlinekey)
 	}
 
@@ -204,11 +204,11 @@ func (env *Env) clearupOnlines(unitid string) error {
 			iter, _ = redis.Int(bulks[0], nil)
 			keys, _ = redis.Strings(bulks[1], nil)
 			for _, key := range keys {
-				ok, err = redis.Bool(red.Do("DEL", key))
+				res, err = redis.Int64(red.Do("DEL", key))
 				if err != nil {
 					return err
 				}
-				if ok {
+				if res == 1 {
 					log.Printf("DEL %s\n", key)
 				}
 			}
@@ -237,8 +237,8 @@ func main() {
 
 	var checkedUnits []string
 	for data := range runch {
-		log.Println(data)
-		if data.Running {
+		log.Printf("%#v\n", data)
+		if !data.Running {
 			if err := env.clearupOnlines(data.Unitid); err != nil {
 				log.Fatal(err)
 			}

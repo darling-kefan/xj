@@ -2,6 +2,7 @@ package ndscloud
 
 import (
 	"encoding/json"
+	"sync"
 	"time"
 )
 
@@ -130,4 +131,72 @@ type CourseIdentity struct {
 	Uid      string
 	Identity string
 	CourseId string
+}
+
+// ---------------------------------------------------------------------
+
+type LocalUserSet struct {
+	users map[string]LocalUsrRegItem
+	sync.RWMutex
+}
+
+func NewLocalUserSet() *LocalUserSet {
+	return &LocalUserSet{
+		users: make(map[string]LocalUsrRegItem),
+	}
+}
+
+func (ls *LocalUserSet) Clear() {
+	ls.Lock()
+	defer ls.Unlock()
+	ls.users = make(map[string]LocalUsrRegItem)
+}
+
+func (ls *LocalUserSet) Add(item LocalUsrRegItem) {
+	ls.Lock()
+	defer ls.Unlock()
+	ls.users[item.Uid] = item
+}
+
+func (ls *LocalUserSet) List() []LocalUsrRegItem {
+	ls.RLock()
+	defer ls.RUnlock()
+	list := make([]LocalUsrRegItem, 0)
+	for _, item := range ls.users {
+		list = append(list, item)
+	}
+	return list
+}
+
+type LocalDeviceSet struct {
+	devices map[string]LocalDevRegItem
+	sync.RWMutex
+}
+
+func NewLocalDeviceSet() *LocalDeviceSet {
+	return &LocalDeviceSet{
+		devices: make(map[string]LocalDevRegItem),
+	}
+}
+
+func (ld *LocalDeviceSet) Clear() {
+	ld.Lock()
+	defer ld.Unlock()
+	ld.devices = make(map[string]LocalDevRegItem)
+}
+
+func (ld *LocalDeviceSet) Add(item LocalDevRegItem) {
+	ld.Lock()
+	defer ld.Unlock()
+	ld.devices[item.Did] = item
+}
+
+func (ld *LocalDeviceSet) List() []LocalDevRegItem {
+	ld.RLock()
+	defer ld.RUnlock()
+	list := make([]LocalDevRegItem, 0)
+	for _, item := range ld.devices {
+		list = append(list, item)
+	}
+	return list
 }
