@@ -93,7 +93,7 @@ type Config struct {
 }
 
 type Device struct {
-	DeviceType     int    `json:"device_type"`
+	DeviceType     string `json:"device_type"`
 	ClassroomId    string `json:"classroom_id"`
 	ClassroomTitle string `json:"classroom_title"`
 }

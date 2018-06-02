@@ -101,7 +101,7 @@ func getTokenInfo(token string) (interface{}, error) {
 		return &tokenInfo.UserInfo, nil
 	}
 
-	if tokenInfo.Config.Device.DeviceType != 0 {
+	if tokenInfo.Config.Device.DeviceType != "0" {
 		return &tokenInfo.DeviceInfo, nil
 	}
 

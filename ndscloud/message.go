@@ -197,5 +197,41 @@ func ParseFieldTo(to string) (groups, individuals []string) {
 		return
 	}
 	parts := strings.Split(to, "@")
+	switch {
+	case parts[0] == "A":
+		groups = []string{"A"}
+		return
+	case parts[0] == "T":
+		groups = []string{"T"}
+	case parts[0] == "S":
+		groups = []string{"S"}
+	case parts[0] == "D":
+		groups = []string{"D"}
+	case strings.Index(parts[0], "|") != -1:
+		groups = strings.Split(parts[0], "|")
+		hasA := false
+		for _, v := range groups {
+			if v == "A" {
+				hasA = true
+				break
+			}
+		}
+		if hasA {
+			groups = []string{"A"}
+			return
+		}
+	case strings.Index(parts[0], ",") != -1:
+		individuals = strings.Split(parts[0], ",")
+		return
+	default:
+		individuals = []string{parts[0]}
+		return
+	}
+	if len(parts) > 1 {
+		if parts[1] != "" {
+			ia := strings.Split(parts[1], ",")
+			individuals = append(individuals, ia...)
+		}
+	}
 	return
 }

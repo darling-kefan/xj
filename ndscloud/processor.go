@@ -38,7 +38,10 @@ func (c *Client) process(raw []byte) {
 		if !c.isRegistered {
 			c.isRegistered = true
 			c.registeredAt = time.Now().UnixNano()
+			// 是否发送上线消息
 			isSendOnlineMsg = true
+			// 用户注册到Hub
+			c.hub.register <- c
 		}
 
 		// 推送上线消息
@@ -152,17 +155,27 @@ func (c *Client) process(raw []byte) {
 		if message.To == "" {
 			log.Printf("[%s] No field 'to', discard message.\n", c.id)
 		}
+		message.Sender = c.id
+		message.Unit = c.unitId
 		c.hub.inbound <- message
 	case *ModStatusMsg:
 
 	case *UsrOnlineMsg:
-
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	case *UsrOfflineMsg:
-
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	case *DevOnlineMsg:
-
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	case *DevOfflineMsg:
-
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	case *UnitControlMsg:
 
 	case *PullInkMsg:

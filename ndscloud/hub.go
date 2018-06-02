@@ -48,6 +48,7 @@ type UnitCache struct {
 	Tea map[string]struct{}
 	Stu map[string]struct{}
 	Dev map[string]struct{}
+	Nds map[string]struct{}
 }
 
 func NewHub() *Hub {
@@ -79,6 +80,7 @@ func (h *Hub) add(clients ...*Client) {
 				Tea: make(map[string]struct{}),
 				Stu: make(map[string]struct{}),
 				Dev: make(map[string]struct{}),
+				Nds: make(map[string]struct{}),
 			}
 			h.unitmap[client.unitId] = uc
 		}
@@ -94,6 +96,10 @@ func (h *Hub) add(clients ...*Client) {
 		if _, ok := client.info.(*DeviceInfo); ok {
 			// 设备
 			uc.Dev[client.id] = struct{}{}
+		}
+		// 本地中控
+		if client.isLocalControl() {
+			uc.Nds[client.id] = struct{}{}
 		}
 	}
 }
@@ -176,6 +182,29 @@ func (h *Hub) list() []Client {
 	return list
 }
 
+// 根据消息里的To字段，计算出将消息推送给谁
+func (h *Hub) getrecversbyto(to string, unitid string) (receiverSet map[string]struct{}) {
+	groups, individuals := ParseFieldTo(to)
+	for _, group := range groups {
+		switch group {
+		case "A":
+			receiverSet = h.unitmap[unitid].All
+			return
+		case "T":
+			receiverSet = h.unitmap[unitid].Tea
+		case "S":
+			receiverSet = h.unitmap[unitid].Stu
+		case "D":
+			receiverSet = h.unitmap[unitid].Dev
+		default:
+		}
+	}
+	for _, individual := range individuals {
+		receiverSet[individual] = struct{}{}
+	}
+	return
+}
+
 // Calculate message receivers.
 // Determine which clients to send to
 func (h *Hub) msgrecvers(message interface{}) (receivers []string) {
@@ -190,10 +219,11 @@ func (h *Hub) msgrecvers(message interface{}) (receivers []string) {
 	case *OrdinaryMsg:
 		sender = msg.Sender
 		toSender = false
-
+		receiverSet = h.getrecversbyto(msg.To, msg.Unit)
 	case *ModStatusMsg:
 		sender = msg.Sender
 		toSender = false
+		receiverSet = h.getrecversbyto(msg.To, msg.Unit)
 	case *UsrOnlineMsg:
 		sender = msg.Sender
 		toSender = false
@@ -213,9 +243,15 @@ func (h *Hub) msgrecvers(message interface{}) (receivers []string) {
 	case *UnitControlMsg:
 		sender = msg.Sender
 		toSender = false
+		receiverSet = h.unitmap[msg.Unit].All
+	case *PullInkMsg:
+		// 开始接收笔迹消息不转发
+	case *EndPullInkMsg:
+		// 停止接收笔迹消息不转发
 	case *ChatTextMsg:
 		sender = msg.Sender
 		toSender = false
+		receiverSet = h.unitmap[msg.Unit].All
 	}
 
 	// Remove sender
@@ -254,12 +290,15 @@ func (h *Hub) Run() {
 		case unitid := <-h.endunit:
 			h.removebyunitid(unitid)
 		case message := <-h.inbound:
-			log.Printf("%#v\n", message)
 			if msg, err := json.Marshal(message); err == nil {
 				receivers := h.msgrecvers(message)
-				log.Printf("Message receivers: %v", receivers)
+				log.Printf("Message: %v, receivers: %v\n", message, receivers)
 				for _, id := range receivers {
-					h.clients[id].outbound <- msg
+					// 判断to中的个人id是否已经注册到云端
+					if _, ok := h.clients[id]; ok {
+						h.clients[id].outbound <- msg
+						log.Printf("Send %v to %v\n", string(msg), id)
+					}
 				}
 			} else {
 				log.Println(err)

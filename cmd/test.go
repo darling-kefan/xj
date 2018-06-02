@@ -44,7 +44,7 @@ func ParseFieldTo(to string) (groups, individuals []string) {
 	case parts[0] == "D":
 		groups = []string{"D"}
 	case strings.Index(parts[0], "|") != -1:
-		groups := strings.Split(parts[0], "|")
+		groups = strings.Split(parts[0], "|")
 		hasA := false
 		for _, v := range groups {
 			if v == "A" {
@@ -63,9 +63,11 @@ func ParseFieldTo(to string) (groups, individuals []string) {
 		individuals = []string{parts[0]}
 		return
 	}
-	if parts[1] != "" {
-		ia := strings.Split(parts[1], ",")
-		individuals = append(individuals, ia...)
+	if len(parts) > 1 {
+		if parts[1] != "" {
+			ia := strings.Split(parts[1], ",")
+			individuals = append(individuals, ia...)
+		}
 	}
 	return
 }
@@ -75,6 +77,12 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	groups, individuals := ParseFieldTo("A|S@1,2")
+	log.Println(groups, individuals)
+	groups, individuals = ParseFieldTo("T|S@1,2")
+	log.Println(groups, individuals)
+	groups, individuals = ParseFieldTo("T")
+	log.Println(groups, individuals)
+	groups, individuals = ParseFieldTo("1,2")
 	log.Println(groups, individuals)
 
 	return
