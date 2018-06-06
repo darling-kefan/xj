@@ -15,66 +15,22 @@ import (
 	"github.com/darling-kefan/xj/config"
 )
 
-type User struct {
-	Name string
-}
-
-func list(mx map[string]*User) []User {
-	l := make([]User, 0)
-	for _, item := range mx {
-		l = append(l, *item)
-	}
-	return l
-}
-
-// Parse the field to of message and return groups and individuals
-func ParseFieldTo(to string) (groups, individuals []string) {
-	if to == "" {
-		return
-	}
-	parts := strings.Split(to, "@")
-	switch {
-	case parts[0] == "A":
-		groups = []string{"A"}
-		return
-	case parts[0] == "T":
-		groups = []string{"T"}
-	case parts[0] == "S":
-		groups = []string{"S"}
-	case parts[0] == "D":
-		groups = []string{"D"}
-	case strings.Index(parts[0], "|") != -1:
-		groups = strings.Split(parts[0], "|")
-		hasA := false
-		for _, v := range groups {
-			if v == "A" {
-				hasA = true
-				break
-			}
-		}
-		if hasA {
-			groups = []string{"A"}
-			return
-		}
-	case strings.Index(parts[0], ",") != -1:
-		individuals = strings.Split(parts[0], ",")
-		return
-	default:
-		individuals = []string{parts[0]}
-		return
-	}
-	if len(parts) > 1 {
-		if parts[1] != "" {
-			ia := strings.Split(parts[1], ",")
-			individuals = append(individuals, ia...)
-		}
-	}
-	return
-}
-
 func main() {
 	// 设置日志格式
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	idmap := make(map[string]map[string]struct{})
+	log.Printf("%#v\n", idmap)
+
+	if _, ok := idmap["a"]; ok {
+		idmap["a"]["sub_a"] = struct{}{}
+	} else {
+		idmap["a"] = make(map[string]struct{})
+		idmap["a"]["sub_a"] = struct{}{}
+	}
+	log.Printf("%v\n", idmap)
+
+	return
 
 	groups, individuals := ParseFieldTo("A|S@1,2")
 	log.Println(groups, individuals)
@@ -247,4 +203,61 @@ func main() {
 	//}
 	//
 	//log.Println(resp)
+}
+
+type User struct {
+	Name string
+}
+
+func list(mx map[string]*User) []User {
+	l := make([]User, 0)
+	for _, item := range mx {
+		l = append(l, *item)
+	}
+	return l
+}
+
+// Parse the field to of message and return groups and individuals
+func ParseFieldTo(to string) (groups, individuals []string) {
+	if to == "" {
+		return
+	}
+	parts := strings.Split(to, "@")
+	switch {
+	case parts[0] == "A":
+		groups = []string{"A"}
+		return
+	case parts[0] == "T":
+		groups = []string{"T"}
+	case parts[0] == "S":
+		groups = []string{"S"}
+	case parts[0] == "D":
+		groups = []string{"D"}
+	case strings.Index(parts[0], "|") != -1:
+		groups = strings.Split(parts[0], "|")
+		hasA := false
+		for _, v := range groups {
+			if v == "A" {
+				hasA = true
+				break
+			}
+		}
+		if hasA {
+			groups = []string{"A"}
+			return
+		}
+	case strings.Index(parts[0], ",") != -1:
+		individuals = strings.Split(parts[0], ",")
+		return
+	default:
+		individuals = []string{parts[0]}
+		return
+	}
+	if len(parts) > 1 {
+		if parts[1] != "" {
+			ia := strings.Split(parts[1], ",")
+			individuals = append(individuals, ia...)
+		}
+	}
+	return
 }
