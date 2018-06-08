@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/darling-kefan/xj/nstat/protocol"
 )
@@ -44,15 +45,26 @@ func (c *consumer) run(wg *sync.WaitGroup) {
 	log.Printf("Consumer[%v] start...\n", goroutineId)
 	defer wg.Done()
 
+	// 1毫秒读取一次通道信息, 以同时处理多个消息(传递给接口), 从而提高效率.
+	ticker := time.NewTicker(1 * time.Millisecond)
+	defer ticker.Stop()
+
 loop:
 	for {
 		select {
-		case statData := <-c.p.outbound:
-			// TODO 记录未被处理的消息
-			// --------------------------------
-
+		case <-ticker.C:
+			// 一次性最多处理10条消息
+			n := 10
 			factors := make([]*protocol.StatFactor, 0)
-			factors = append(factors, statData.Factors...)
+			for i := 0; i < n; i++ {
+				select {
+				case statData := <-c.p.outbound:
+					factors = append(factors, statData.Factors...)
+				default:
+					//如果c.p.outbound中无数据, 则执行default.
+					//log.Printf("Consumer[%v] no data in outbound.\n", goroutineId)
+				}
+			}
 
 			// 该种写法不妥当, 因为len反映此时此刻通道里的数据,
 			// 如果是多个goroutine的话, 会堵塞在case语句里面导致进程退出不了.
@@ -65,14 +77,20 @@ loop:
 			//	factors = append(factors, statData.Factors...)
 			//}
 
-			jsonStream, err := json.Marshal(factors)
-			if err != nil {
-				log.Printf("Consumer[%v] %v\n", goroutineId, err)
-				break loop
-			}
-			log.Printf("Consumer[%v] %v %v\n", goroutineId, factors, string(jsonStream))
+			if len(factors) > 0 {
+				jsonStream, err := json.Marshal(factors)
+				if err != nil {
+					log.Printf("Consumer[%v] %v\n", goroutineId, err)
+					break loop
+				}
 
-			// TODO 请求接口,同步到ssdb
+				log.Printf("Consumer[%v] %v %v\n", goroutineId, factors, string(jsonStream))
+
+				// TODO 请求接口,同步到ssdb
+
+				// TODO 记录未被处理的消息
+				// --------------------------------
+			}
 
 		case <-stopCh:
 			break loop

@@ -37,7 +37,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Stype: protocol.STAT_COUNT_USER,
 				Oid:   logMsg.Oid,
 				Value: 1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 
 			// 生成新增用户总数统计因子
@@ -45,7 +45,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Stype: protocol.STAT_COUNT_NEW_USER,
 				Oid:   logMsg.Oid,
 				Value: 1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2)
 		} else if logMsg.Act == "del" {
@@ -54,7 +54,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Stype: protocol.STAT_COUNT_USER,
 				Oid:   logMsg.Oid,
 				Value: -1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor)
 		}
@@ -64,7 +64,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 			Stype: protocol.STAT_COUNT_LOGIN,
 			Sid:   logMsg.Uid,
 			Value: 1,
-			Date:  &logMsg.CreatedAt.Time,
+			Date:  logMsg.CreatedAt.Format("2006-01-02"),
 		}
 		// 生成用户位置数统计因子
 		// 根据ip地址地区名称,最后根据地区名称获得did
@@ -80,7 +80,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 			Sid:    did,
 			Subkey: logMsg.Uid,
 			Value:  1,
-			Date:   &logMsg.CreatedAt.Time,
+			Date:   logMsg.CreatedAt.Format("2006-01-02"),
 		}
 		// 登录排行统计因子(老师,学生)
 		// TODO 如何确定uid是老师还是学生?
@@ -91,7 +91,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Sid:    "1",
 				Subkey: logMsg.Uid,
 				Value:  1,
-				Date:   &logMsg.CreatedAt.Time,
+				Date:   logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3)
 		} else if identity == 2 {
@@ -100,7 +100,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Sid:    "2",
 				Subkey: logMsg.Uid,
 				Value:  1,
-				Date:   &logMsg.CreatedAt.Time,
+				Date:   logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3)
 		} else {
@@ -114,7 +114,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Sid,
 				Value: 1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 
 			// 生成课程评分统计因子
@@ -123,7 +123,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Sid,
 				Value: 1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 
 			statData.Factors = append(statData.Factors, factor, factor2)
@@ -134,7 +134,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Sid,
 				Value: -1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 
 			// 生成课程评分统计因子
@@ -143,7 +143,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Sid,
 				Value: -1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 
 			statData.Factors = append(statData.Factors, factor, factor2)
@@ -158,7 +158,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Sid:    logMsg.Sid,
 				Subkey: logMsg.Subkey,
 				Value:  1,
-				Date:   &logMsg.CreatedAt.Time,
+				Date:   logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor)
 		} else if logMsg.Act == "del" {
@@ -169,7 +169,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Sid:    logMsg.Sid,
 				Subkey: logMsg.Subkey,
 				Value:  -1,
-				Date:   &logMsg.CreatedAt.Time,
+				Date:   logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor)
 		}
@@ -182,14 +182,14 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Stype: protocol.STAT_COUNT_COURSEWARE,
 				Oid:   logMsg.Oid,
 				Value: 1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			// 生成课件大小统计因子
 			factor2 := &protocol.StatFactor{
 				Stype: protocol.STAT_SIZE_COURSEWARE,
 				Oid:   logMsg.Oid,
 				Value: filesize,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			// 生成课件类型数量统计因子
 			factor3 := &protocol.StatFactor{
@@ -197,7 +197,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Filetype,
 				Value: 1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			// 生成课件类型大小统计因子
 			factor4 := &protocol.StatFactor{
@@ -205,7 +205,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Filetype,
 				Value: filesize,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3, factor4)
 		} else if logMsg.Act == "del" {
@@ -214,14 +214,14 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Stype: protocol.STAT_COUNT_COURSEWARE,
 				Oid:   logMsg.Oid,
 				Value: -1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			// 生成课件大小统计因子
 			factor2 := &protocol.StatFactor{
 				Stype: protocol.STAT_SIZE_COURSEWARE,
 				Oid:   logMsg.Oid,
 				Value: -filesize,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			// 生成课件类型数量统计因子
 			factor3 := &protocol.StatFactor{
@@ -229,7 +229,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Filetype,
 				Value: -1,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			// 生成课件类型大小统计因子
 			factor4 := &protocol.StatFactor{
@@ -237,7 +237,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Filetype,
 				Value: -filesize,
-				Date:  &logMsg.CreatedAt.Time,
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3, factor4)
 		}

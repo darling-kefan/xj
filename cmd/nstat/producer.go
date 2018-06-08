@@ -53,6 +53,94 @@ func main() {
     "filesize": "1024",
     "created_at": "2018-05-25 08:02:58"
 }`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
+		`{
+    "mtype": "41",
+    "oid": "100",
+    "act": "add",
+    "filetype": "1",
+    "filesize": "1024",
+    "created_at": "2018-05-25 08:02:58"
+}`,
 	}
 	for _, word := range messages {
 		producer.Produce(&kafka.Message{
