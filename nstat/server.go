@@ -1,8 +1,21 @@
 package nstat
 
 import (
+	"encoding/json"
+	"io/ioutil"
+	"log"
+	"os"
+	"os/signal"
 	"sync"
+
+	"github.com/ipipdotnet/datx-go"
 )
+
+// City ip db object
+var cityipdb *datx.City
+
+// The map of name and did
+var countryMap, provinceMap, cityMap map[string]string
 
 // stopCh is an additional signal channel.
 // Its sender is moderator goroutine, and its
@@ -96,29 +109,82 @@ func (lfs *LogFailedSet) Clear() {
 
 // main goroutine退出时将最新message_id持久化
 
-func run() {
+type Districts struct {
+	Country  map[string]int `json:"country"`
+	Province map[string]int `json:"province"`
+	City     map[string]int `json:"city"`
+}
+
+var districtDb *Districts
+
+func loadDistricts(disfile string) (*Districts, error) {
+	buf, err := ioutil.ReadFile(disfile)
+	if err != nil {
+		return nil, err
+	}
+	dises := new(Districts)
+	if err = json.Unmarshal(buf, dises); err != nil {
+		return nil, err
+	}
+	return dises, nil
+}
+
+func Run() {
+	// 设置日志格式
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	log.Println("Lauch...........")
+	var err error
+
+	// 加载本地地区库
+	disfile := "/home/shouqiang/goyards/src/github.com/darling-kefan/xj/districts.db"
+	districtDb, err = loadDistricts(disfile)
+	if err != nil {
+		log.Println("Failed to load districtDb: ", err)
+		return
+	}
+
+	// 创建ip数据定位库对象
+	cityipdb, err = datx.NewCity("/home/shouqiang/goyards/src/github.com/darling-kefan/xj/17monipdb.datx")
+	if err != nil {
+		log.Println("Failed to create cityipdb: ", err)
+		return
+	}
+
+	// 监听系统信号
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+
 	var wg sync.WaitGroup
-	wg.Add(7)
+	wg.Add(3)
 
 	// Start the processor.
 	processor := newProcessor()
 	go processor.run(&wg)
 
 	// Start the collector.
-	collector := newCollector(p)
+	collector := newCollector(processor)
 	go collector.run(&wg)
 
 	// Start the consumer.
-	for i := 0; i < 5; i++ {
-		consumer := newConsumer(processor)
-		go consumer.run(&wg)
-	}
+	//for i := 0; i < 5; i++ {
+	//	consumer := newConsumer(processor)
+	//	go consumer.run(&wg)
+	//}
+	consumer := newConsumer(processor)
+	go consumer.run(&wg)
 
 	// Start the moderator goroutine.
 	go func() {
-		<-toStop
-		close(stopCh)
+		select {
+		case <-toStop:
+			close(stopCh)
+		case <-interrupt:
+			close(stopCh)
+		}
+		log.Println("Moderator goroutine quit...")
 	}()
 
 	wg.Wait()
+	log.Println("Main goroutine quit...")
 }
