@@ -61,10 +61,10 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 	case protocol.LOG_USER_LOGIN:
 		// 生成用户登录数统计因子
 		factor := &protocol.StatFactor{
-			Stype: protocol.STAT_COUNT_LOGIN,
-			Sid:   logMsg.Uid,
-			Value: 1,
-			Date:  logMsg.CreatedAt.Format("2006-01-02"),
+			Stype:  protocol.STAT_COUNT_LOGIN,
+			Subkey: logMsg.Uid,
+			Value:  1,
+			Date:   logMsg.CreatedAt.Format("2006-01-02"),
 		}
 		// 生成用户位置数统计因子
 		// 根据ip地址地区名称,最后根据地区名称获得did
