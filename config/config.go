@@ -15,6 +15,7 @@ type TomlConfig struct {
 	Api     Api
 	Cc      Cc
 	Stat    Stat
+	SSDB    SSDB
 }
 
 type CommonInfo struct {
@@ -54,6 +55,12 @@ type Cc struct {
 type Stat struct {
 	Districtdb string
 	Cityipdb   string
+}
+
+type SSDB struct {
+	Host string
+	Port int
+	Auth string
 }
 
 var Config *TomlConfig
