@@ -2,12 +2,14 @@ package nstat
 
 import (
 	"encoding/json"
+	"flag"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
 
+	"github.com/darling-kefan/xj/config"
 	"github.com/ipipdotnet/datx-go"
 )
 
@@ -134,18 +136,25 @@ func Run() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	log.Println("Lauch...........")
-	var err error
+
+	// 加载配置文件
+	configFilePath := flag.String("config_file_path", "", "The config file path.(Required)")
+	flag.Parse()
+	if *configFilePath == "" {
+		log.Fatal("config_file_path is required.")
+	}
+	config.Load(*configFilePath)
 
 	// 加载本地地区库
-	disfile := "/home/shouqiang/goyards/src/github.com/darling-kefan/xj/districts.db"
-	districtDb, err = loadDistricts(disfile)
+	var err error
+	districtDb, err = loadDistricts(config.Config.Stat.Districtdb)
 	if err != nil {
 		log.Println("Failed to load districtDb: ", err)
 		return
 	}
 
 	// 创建ip数据定位库对象
-	cityipdb, err = datx.NewCity("/home/shouqiang/goyards/src/github.com/darling-kefan/xj/17monipdb.datx")
+	cityipdb, err = datx.NewCity(config.Config.Stat.Cityipdb)
 	if err != nil {
 		log.Println("Failed to create cityipdb: ", err)
 		return

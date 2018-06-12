@@ -14,6 +14,7 @@ type TomlConfig struct {
 	OAuth2  OAuth2
 	Api     Api
 	Cc      Cc
+	Stat    Stat
 }
 
 type CommonInfo struct {
@@ -48,6 +49,11 @@ type Api struct {
 type Cc struct {
 	Domain string
 	Wsapi  string
+}
+
+type Stat struct {
+	Districtdb string
+	Cityipdb   string
 }
 
 var Config *TomlConfig

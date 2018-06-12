@@ -28,3 +28,7 @@ unitidentity = "https://api.ndmooc.com/v1/units/:unit_id/users/:uid/detail"
 [cc]
 domain = "https://cc.ndmooc.com"
 wsapi = "wss://cc.ndmooc.com/v2/ngx/center/units/:unit_id/?token=:token"
+
+[stat]
+districtdb = "/home/shouqiang/go/src/github.com/darling-kefan/xj/districts.db"
+cityipdb = "/home/shouqiang/go/src/github.com/darling-kefan/xj/17monipdb.datx"

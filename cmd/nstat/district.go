@@ -64,7 +64,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	filename := "/home/shouqiang/goyards/src/github.com/darling-kefan/xj/districts.db"
+	filename := "/home/shouqiang/go/src/github.com/darling-kefan/xj/districts.db"
 	if _, err := os.Stat(filename); os.IsExist(err) {
 		os.Remove(filename)
 	}
