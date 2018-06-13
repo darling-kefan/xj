@@ -1,23 +1,21 @@
 package nstat
 
 import (
+	"database/sql"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
+	"time"
 
 	"github.com/darling-kefan/xj/config"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/ipipdotnet/datx-go"
 )
-
-// City ip db object
-var cityipdb *datx.City
-
-// The map of name and did
-var countryMap, provinceMap, cityMap map[string]string
 
 // stopCh is an additional signal channel.
 // Its sender is moderator goroutine, and its
@@ -30,87 +28,10 @@ var stopCh chan struct{} = make(chan struct{})
 // moderator goroutine.
 var toStop chan string = make(chan string)
 
-// 存储最新消费日志的位置
-var Los *LogOffsetSet = NewLogOffsetSet()
+// City ip db object
+var cityipdb *datx.City
 
-type LogOffsetSet struct {
-	sync.RWMutex
-	offsets map[string]string
-}
-
-func NewLogOffsetSet() *LogOffsetSet {
-	return &LogOffsetSet{
-		offsets: make(map[string]string),
-	}
-}
-
-func (los *LogOffsetSet) Set(topic string, msgid string) {
-	los.Lock()
-	los.offsets[topic] = msgid
-	los.Unlock()
-}
-
-func (los *LogOffsetSet) Map() map[string]string {
-	los.RLock()
-	mapset := make(map[string]string)
-	for topic, msgid := range los.offsets {
-		mapset[topic] = msgid
-	}
-	los.RUnlock()
-	return mapset
-}
-
-func (los *LogOffsetSet) Clear() {
-	los.Lock()
-	los.offsets = make(map[string]string)
-	los.Unlock()
-}
-
-// 存储消费失败的消息
-var Lfs *LogFailedSet = NewLogFailedSet()
-
-type LogFailedSet struct {
-	sync.RWMutex
-	idmap map[string]map[string]struct{}
-}
-
-func NewLogFailedSet() *LogFailedSet {
-	return &LogFailedSet{
-		idmap: make(map[string]map[string]struct{}),
-	}
-}
-
-func (lfs *LogFailedSet) Add(topic string, msgid string) {
-	lfs.Lock()
-	if _, ok := lfs.idmap[topic]; ok {
-		lfs.idmap[topic][msgid] = struct{}{}
-	} else {
-		lfs.idmap[topic] = make(map[string]struct{})
-	}
-	lfs.Unlock()
-}
-
-func (lfs *LogFailedSet) Map() map[string]map[string]struct{} {
-	lfs.RLock()
-	mapset := make(map[string]map[string]struct{})
-	for topic, value := range lfs.idmap {
-		mapset[topic] = make(map[string]struct{})
-		for msgid, _ := range value {
-			mapset[topic][msgid] = struct{}{}
-		}
-	}
-	lfs.RUnlock()
-	return mapset
-}
-
-func (lfs *LogFailedSet) Clear() {
-	lfs.Lock()
-	lfs.idmap = make(map[string]map[string]struct{})
-	lfs.Unlock()
-}
-
-// main goroutine退出时将最新message_id持久化
-
+// 加载本地地区库
 type Districts struct {
 	Country  map[string]int `json:"country"`
 	Province map[string]int `json:"province"`
@@ -119,7 +40,7 @@ type Districts struct {
 
 var districtDb *Districts
 
-func loadDistricts(disfile string) (*Districts, error) {
+func NewDistrictDb(disfile string) (*Districts, error) {
 	buf, err := ioutil.ReadFile(disfile)
 	if err != nil {
 		return nil, err
@@ -130,6 +51,75 @@ func loadDistricts(disfile string) (*Districts, error) {
 	}
 	return dises, nil
 }
+
+// 缓存
+type Cache struct {
+	sync.RWMutex
+	Teachers map[string]bool
+}
+
+func NewCache() *Cache {
+	cache := &Cache{
+		Teachers: make(map[string]bool),
+	}
+	cache.Reload()
+	return cache
+}
+
+func (c *Cache) Reload() {
+	apiConf := config.Config.MySQL["api"]
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		apiConf.Username,
+		apiConf.Password,
+		apiConf.Host,
+		apiConf.Port,
+		apiConf.Dbname,
+	)
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	if err = db.Ping(); err != nil {
+		panic(err)
+	}
+
+	sql := "SELECT DISTINCT(`uid`) AS `uid` FROM `course_users` WHERE `identity` = 1 AND `deleted_at` IS NULL"
+	rows, err := db.Query(sql)
+	if err != nil {
+		panic(err)
+	}
+	defer rows.Close()
+
+	var uid string
+	teachers := make(map[string]bool)
+	for rows.Next() {
+		err := rows.Scan(&uid)
+		if err != nil {
+			panic(err)
+		}
+		teachers[uid] = true
+	}
+	if err = rows.Err(); err != nil {
+		panic(err)
+	}
+
+	log.Printf("[Cache Reloader] %v\n", teachers)
+
+	c.Lock()
+	c.Teachers = teachers
+	c.Unlock()
+}
+
+func (c *Cache) IsTeacher(uid string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	_, ok := c.Teachers[uid]
+	return ok
+}
+
+// 全局缓存变量
+var cache *Cache
 
 func Run() {
 	// 设置日志格式
@@ -145,9 +135,12 @@ func Run() {
 	}
 	config.Load(*configFilePath)
 
+	// 加载缓存数据
+	cache = NewCache()
+
 	// 加载本地地区库
 	var err error
-	districtDb, err = loadDistricts(config.Config.Stat.Districtdb)
+	districtDb, err = NewDistrictDb(config.Config.Stat.Districtdb)
 	if err != nil {
 		log.Println("Failed to load districtDb: ", err)
 		return
@@ -165,7 +158,7 @@ func Run() {
 	signal.Notify(interrupt, os.Interrupt)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 
 	// Start the processor.
 	processor := newProcessor()
@@ -182,6 +175,25 @@ func Run() {
 	//}
 	consumer := newConsumer(processor)
 	go consumer.run(&wg)
+
+	// Start Timing Loader(定时更新缓存, 比如定时载入哪些人是老师)
+	go func(wg *sync.WaitGroup) {
+		log.Printf("Timing loader start...\n")
+		defer wg.Done()
+		// 启动定时器，每5分钟更新一次缓存
+		ticker := time.NewTicker(300 * time.Second)
+		defer ticker.Stop()
+	loop:
+		for {
+			select {
+			case <-ticker.C:
+				cache.Reload()
+			case <-stopCh:
+				break loop
+			}
+		}
+		log.Printf("Timing loader quit...\n")
+	}(&wg)
 
 	// Start the moderator goroutine.
 	go func() {

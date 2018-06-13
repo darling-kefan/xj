@@ -1,11 +1,15 @@
+// go run district.go --config_file_path '/home/shouqiang/go/src/github.com/darling-kefan/xj'
 package main
 
 import (
 	"database/sql"
 	"encoding/json"
+	"flag"
+	"fmt"
 	"log"
 	"os"
 
+	"github.com/darling-kefan/xj/config"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -16,7 +20,22 @@ type Districts struct {
 }
 
 func main() {
-	db, err := sql.Open("mysql", "root:123456@tcp(172.17.0.1:3306)/oauth")
+	// 加载配置文件
+	configFilePath := flag.String("config_file_path", "", "The config file path.(Required)")
+	flag.Parse()
+	if *configFilePath == "" {
+		log.Fatal("config_file_path is required.")
+	}
+	config.Load(*configFilePath)
+
+	accountConf := config.Config.MySQL["account"]
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		accountConf.Username,
+		accountConf.Password,
+		accountConf.Host,
+		accountConf.Port,
+		accountConf.Dbname)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,7 +83,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	filename := "/home/shouqiang/go/src/github.com/darling-kefan/xj/districts.db"
+	filename := config.Config.Stat.Districtdb
 	if _, err := os.Stat(filename); os.IsExist(err) {
 		os.Remove(filename)
 	}

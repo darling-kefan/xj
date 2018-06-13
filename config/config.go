@@ -16,6 +16,7 @@ type TomlConfig struct {
 	Cc      Cc
 	Stat    Stat
 	SSDB    SSDB
+	MySQL   map[string]MySQL
 }
 
 type CommonInfo struct {
@@ -61,6 +62,14 @@ type SSDB struct {
 	Host string
 	Port int
 	Auth string
+}
+
+type MySQL struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	Dbname   string
 }
 
 var Config *TomlConfig

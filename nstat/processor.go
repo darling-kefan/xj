@@ -83,9 +83,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 			Date:   logMsg.CreatedAt.Format("2006-01-02"),
 		}
 		// 登录排行统计因子(老师,学生)
-		// TODO 如何确定uid是老师还是学生?
-		identity := 0
-		if identity == 1 {
+		if cache.IsTeacher(logMsg.Uid) {
 			factor3 := &protocol.StatFactor{
 				Stype:  protocol.STAT_COUNT_LOGIN_TEACHER,
 				Sid:    "1",
@@ -94,7 +92,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Date:   logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3)
-		} else if identity == 2 {
+		} else {
 			factor3 := &protocol.StatFactor{
 				Stype:  protocol.STAT_COUNT_LOGIN_STUDENT,
 				Sid:    "2",
@@ -103,8 +101,6 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Date:   logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3)
-		} else {
-			statData.Factors = append(statData.Factors, factor, factor2)
 		}
 	case protocol.LOG_COURSE:
 		if logMsg.Act == "add" {
