@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/darling-kefan/xj/nstat"
 	"github.com/darling-kefan/xj/nstat/protocol"
@@ -34,36 +35,69 @@ type User struct {
 	Enrollments []Enrollment `json:"enrollments"`
 }
 
-// 计算评分等级
-func gradingStandards(val float64) string {
-	var grade string
-	switch {
-	case val >= 94:
-		grade = "A"
-	case val >= 90:
-		grade = "A-"
-	case val >= 87:
-		grade = "B+"
-	case val >= 84:
-		grade = "B"
-	case val >= 80:
-		grade = "B-"
-	case val >= 77:
-		grade = "C+"
-	case val >= 74:
-		grade = "C"
-	case val >= 70:
-		grade = "C-"
-	case val >= 67:
-		grade = "D+"
-	case val >= 64:
-		grade = "D"
-	case val >= 61:
-		grade = "D-"
-	default:
-		grade = "F"
+func consumer(statChan chan *protocol.StatFactor, stopMainCh chan struct{}, stopConsumerCh chan struct{}) {
+	log.Println("Consumer start...")
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	factors := make([]*protocol.StatFactor, 10)
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			// 一次性最多处理10条消息
+			count := 0
+		inner:
+			for ; count < 10; count++ {
+				select {
+				case data := <-statChan:
+					factors[count] = data
+				default:
+					break inner
+					// 如果statChan中无数据，则执行default.
+				}
+			}
+
+			// 请求接口，同步到ssdb
+			attempt := 1
+			for {
+				if err := nstat.CommitFactors(factors[:count]); err != nil {
+					log.Printf("Failed to commit factors, error: %s\n", err)
+					attempt = attempt + 1
+				} else {
+					break
+				}
+				if attempt > 3 {
+					close(stopMainCh)
+					break loop
+				}
+			}
+		case <-stopConsumerCh:
+			i := 0
+			for data := range statChan {
+				factors[i] = data
+				i = i + 1
+			}
+			// 请求接口，同步到ssdb
+			attempt := 1
+			for {
+				if err := nstat.CommitFactors(factors[:i]); err != nil {
+					log.Printf("Failed to commit factors, error: %s\n", err)
+					attempt = attempt + 1
+				} else {
+					break
+				}
+				if attempt > 3 {
+					close(stopMainCh)
+					break loop
+				}
+			}
+			break loop
+		}
 	}
-	return grade
+
+	log.Println("Consumer quit...")
 }
 
 func main() {
@@ -82,16 +116,21 @@ func main() {
 	q.Add("include[]", "enrollments")
 	q.Set("per_page", "5")
 
+	// 统计因子通道
+	statChan := make(chan *protocol.StatFactor, 10)
+	// 停止通道
+	stopMainChan := make(chan struct{}, 1)
+	stopConsumerChan := make(chan struct{}, 1)
+
+	// 启动协程，将统计因子发送给api
+	go consumer(statChan, stopMainChan, stopConsumerChan)
+
 	// Create Http Client
 	client := &http.Client{}
 
-	// TODO 获取所有课程
 	var courses []int = []int{55}
 loop:
 	for _, courseId := range courses {
-		// 每个课程所有评分等级对应的人数
-		gradeUsers := make(map[string]int)
-
 		u, err := url.Parse(fmt.Sprintf("https://canvas.ndmooc.com/api/v1/courses/%d/users", courseId))
 		if err != nil {
 			log.Println(err)
@@ -107,22 +146,30 @@ loop:
 			resp, _ := client.Do(r)
 			defer resp.Body.Close()
 
-			var users []User
 			body, _ := ioutil.ReadAll(resp.Body)
+			var users []User
 			if err := json.Unmarshal(body, &users); err != nil {
 				log.Println(err)
 				break loop
 			}
-			log.Printf("Courser users: %#v\n", users)
+			log.Printf("%#v\n", users)
 
 			for _, user := range users {
 				userScore := user.Enrollments[0].Grades.CurrentScore
 				if userScore > 0 {
-					grade := gradingStandards(userScore)
-					if _, ok := gradeUsers[grade]; ok {
-						gradeUsers[grade] = gradeUsers[grade] + 1
-					} else {
-						gradeUsers[grade] = 1
+					statFactor := &protocol.StatFactor{
+						Stype:  "23",
+						Oid:    "0",
+						Sid:    strconv.Itoa(courseId),
+						Subkey: strconv.Itoa(user.ID),
+						Value:  userScore,
+					}
+
+					// 写入statChan, 并监听stopMainChan
+					select {
+					case statChan <- statFactor:
+					case <-stopMainChan:
+						break loop
 					}
 				}
 			}
@@ -142,35 +189,12 @@ loop:
 				break
 			}
 		}
-
-		log.Printf("Grading standards: %v", gradeUsers)
-
-		factors := make([]*protocol.StatFactor, 0)
-		for gradeStandard, userCount := range gradeUsers {
-			statFactor := &protocol.StatFactor{
-				Stype:  "23",
-				Oid:    "0",
-				Sid:    strconv.Itoa(courseId),
-				Subkey: gradeStandard,
-				Value:  float64(userCount),
-			}
-			factors = append(factors, statFactor)
-		}
-
-		// 请求接口，同步到ssdb
-		attempt := 1
-		for {
-			if err := nstat.CommitFactors(factors); err != nil {
-				log.Printf("Failed to commit factors, error: %s\n", err)
-				attempt = attempt + 1
-			} else {
-				break
-			}
-			if attempt > 3 {
-				break loop
-			}
-		}
 	}
+
+	// 通知消费者协程结束程序
+	close(stopConsumerChan)
+	// 关闭通道，结束进程
+	close(statChan)
 
 	log.Println("Main quit...")
 }

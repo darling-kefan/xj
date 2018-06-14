@@ -156,16 +156,18 @@ func CommitFactors(factors []*protocol.StatFactor) error {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		log.Println("debug.................", err)
 		return err
 	}
 
-	// log.Println(string(body))
+	log.Println(string(body))
 	type Data struct {
 		Errcode int    `json:"errcode"`
 		Errmsg  string `json:"errmsg"`
 	}
 	var data Data
 	if err = json.Unmarshal(body, &data); err != nil {
+		log.Println("debug...............", err)
 		return err
 	}
 	if data.Errcode != 0 {
