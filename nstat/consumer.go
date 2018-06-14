@@ -9,7 +9,10 @@ package nstat
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"runtime"
 	"strconv"
 	"sync"
@@ -56,11 +59,13 @@ loop:
 			// 一次性最多处理10条消息
 			n := 10
 			factors := make([]*protocol.StatFactor, 0)
+		inner:
 			for i := 0; i < n; i++ {
 				select {
 				case statData := <-c.p.outbound:
 					factors = append(factors, statData.Factors...)
 				default:
+					break inner
 					//如果c.p.outbound中无数据, 则执行default.
 					//log.Printf("Consumer[%v] no data in outbound.\n", goroutineId)
 				}
@@ -77,24 +82,97 @@ loop:
 			//	factors = append(factors, statData.Factors...)
 			//}
 
-			if len(factors) > 0 {
-				jsonStream, err := json.Marshal(factors)
-				if err != nil {
-					log.Printf("Consumer[%v] %v\n", goroutineId, err)
-					break loop
+			// 请求接口,重试3次，同步到ssdb
+			attempt := 1
+			for {
+				if err := CommitFactors(factors); err != nil {
+					log.Printf("Consumer[%v] failed to commit factors, error: %s\n", goroutineId, err)
+					attempt = attempt + 1
+				} else {
+					break
 				}
-
-				log.Printf("Consumer[%v] %v %v\n", goroutineId, factors, string(jsonStream))
-
-				// TODO 请求接口,同步到ssdb
-
-				// TODO 记录未被处理的消息
-				// --------------------------------
+				if attempt > 3 {
+					// 通知关闭其它协程
+					toStop <- "stop"
+					goto end
+				}
 			}
-
 		case <-stopCh:
 			break loop
 		}
 	}
+
+	// 执行如下代码，用于防止c.p.outbound通道里仍有未处理数据
+loop2:
+	for statData := range c.p.outbound {
+		factors := make([]*protocol.StatFactor, 0)
+		factors = append(factors, statData.Factors...)
+
+		// 请求接口,重试3次，同步到ssdb
+		attempt := 1
+		for {
+			if err := CommitFactors(factors); err != nil {
+				log.Printf("Consumer[%v] failed to commit factors, error: %s\n", goroutineId, err)
+				attempt = attempt + 1
+			} else {
+				break
+			}
+			if attempt > 3 {
+				// 通知关闭其它协程
+				toStop <- "stop"
+				break loop2
+			}
+		}
+	}
+
+end:
 	log.Printf("Consumer[%v] quit...\n", goroutineId)
+}
+
+// 将统计因子持久化到ssdb
+func CommitFactors(factors []*protocol.StatFactor) error {
+	if len(factors) == 0 {
+		return nil
+	}
+
+	jsonStream, err := json.Marshal(factors)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("%s\n", string(jsonStream))
+
+	// 请求接口,同步到ssdb
+	url := "http://local.nstat.ndmooc.com/v1/stat/add"
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStream))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// log.Println(string(body))
+	type Data struct {
+		Errcode int    `json:"errcode"`
+		Errmsg  string `json:"errmsg"`
+	}
+	var data Data
+	if err = json.Unmarshal(body, &data); err != nil {
+		return err
+	}
+	if data.Errcode != 0 {
+		return errors.New(data.Errmsg)
+	}
+
+	return nil
+	// TODO 记录未被处理的消息
+	// --------------------------------
 }

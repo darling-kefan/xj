@@ -119,11 +119,11 @@ type StatData struct {
 }
 
 type StatFactor struct {
-	Stype  Stype  `json:"stype"`
-	Oid    string `json:"oid"`
-	Sid    string `json:"sid"`
-	Subkey string `json:"subkey"`
-	Value  int    `json:"value"`
-	Date   string `json:"date"`
+	Stype  Stype   `json:"stype"`
+	Oid    string  `json:"oid"`
+	Sid    string  `json:"sid"`
+	Subkey string  `json:"subkey"`
+	Value  float64 `json:"value"`
+	Date   string  `json:"date"`
 	//Mod    string `json:"mod"`
 }

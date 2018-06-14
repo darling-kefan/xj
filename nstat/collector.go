@@ -32,6 +32,7 @@ func newCollector(p *processor) *collector {
 }
 
 func (c *collector) run(wg *sync.WaitGroup) {
+	log.Println("Collector start...")
 	defer wg.Done()
 
 	groupID := ksuid.New().String()
@@ -90,7 +91,7 @@ loop:
 				log.Println(event)
 			}
 		case <-stopCh:
-			log.Println("Collector quit.")
+			log.Println("Collector quit...")
 			return
 		}
 	}

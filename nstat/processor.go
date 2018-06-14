@@ -184,7 +184,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 			factor2 := &protocol.StatFactor{
 				Stype: protocol.STAT_SIZE_COURSEWARE,
 				Oid:   logMsg.Oid,
-				Value: filesize,
+				Value: float64(filesize),
 				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			// 生成课件类型数量统计因子
@@ -200,7 +200,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Stype: protocol.STAT_SIZE_COURSEWARE_TYPE,
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Filetype,
-				Value: filesize,
+				Value: float64(filesize),
 				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3, factor4)
@@ -216,7 +216,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 			factor2 := &protocol.StatFactor{
 				Stype: protocol.STAT_SIZE_COURSEWARE,
 				Oid:   logMsg.Oid,
-				Value: -filesize,
+				Value: float64(-filesize),
 				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			// 生成课件类型数量统计因子
@@ -232,7 +232,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 				Stype: protocol.STAT_SIZE_COURSEWARE_TYPE,
 				Oid:   logMsg.Oid,
 				Sid:   logMsg.Filetype,
-				Value: -filesize,
+				Value: float64(-filesize),
 				Date:  logMsg.CreatedAt.Format("2006-01-02"),
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3, factor4)
@@ -257,6 +257,7 @@ func (p *processor) run(wg *sync.WaitGroup) {
 				p.outbound <- statData
 			}
 		case <-stopCh:
+			close(p.outbound)
 			log.Println("Processor quit...")
 			return
 		}
