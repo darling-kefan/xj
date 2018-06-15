@@ -144,7 +144,7 @@ func CommitFactors(factors []*protocol.StatFactor) error {
 	log.Printf("%s\n", string(jsonStream))
 
 	// 请求接口,同步到ssdb
-	url := fmt.Sprintf("%s/v1/stat/add", config.Config.CommonInfo.StatHost)
+	url := fmt.Sprintf("%s/v1/stat/add", config.Config.Common.StatHost)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStream))
 	req.Header.Set("Content-Type", "application/json")
 
