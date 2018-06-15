@@ -26,6 +26,7 @@ type CommonInfo struct {
 	NdscloudDomain string
 	StatHost       string
 	CanvasHost     string
+	CanvasToken    string
 }
 
 type RedisInfo struct {

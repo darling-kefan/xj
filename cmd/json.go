@@ -35,8 +35,7 @@ func Decode(r io.Reader) (x *Record, err error) {
 }
 
 func main() {
-	jsonStream := `
-    {"author": 99999999999999999999999999999999, "title": "lession 1", "url": "https://www.sina.com.cn"}`
+	jsonStream := `{"author": 99999999999999999999999999999999, "title": "lession 1", "url": "https://www.sina.com.cn"}`
 	x, err := Decode(strings.NewReader(jsonStream))
 	fmt.Printf("%v: %s : %s: %s: %v\n", x.AuthorID, x.AuthorEmail, x.Title, x.URL, err)
 

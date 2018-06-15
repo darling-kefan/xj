@@ -4,12 +4,14 @@ import (
 	"fmt"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/segmentio/ksuid"
 )
 
 func main() {
+	groupID := ksuid.New().String()
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": "localhost",
-		"group.id":          "mygroup1",
+		"bootstrap.servers": "127.0.0.1:5212",
+		"group.id":          groupID,
 		"auto.offset.reset": "earliest",
 	})
 	if err != nil {

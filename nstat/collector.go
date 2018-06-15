@@ -19,7 +19,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/darling-kefan/xj/config"
 	"github.com/darling-kefan/xj/nstat/protocol"
-	"github.com/segmentio/ksuid"
+	//"github.com/segmentio/ksuid"
 )
 
 type collector struct {
@@ -36,12 +36,11 @@ func (c *collector) run(wg *sync.WaitGroup) {
 	log.Println("Collector start...")
 	defer wg.Done()
 
-	groupID := ksuid.New().String()
+	//groupID := ksuid.New().String()
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"client.id":                       "nstat",
 		"bootstrap.servers":               config.Config.Kafka.Servers,
-		"group.id":                        groupID,
-		"session.timeout.ms":              6000, // TODO 6s还是6000s???
+		"group.id":                        "nstat",
 		"enable.auto.commit":              false,
 		"go.events.channel.enable":        true,
 		"go.application.rebalance.enable": true,

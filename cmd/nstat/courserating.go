@@ -1,18 +1,20 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/darling-kefan/xj/config"
 	"github.com/darling-kefan/xj/nstat"
 	"github.com/darling-kefan/xj/nstat/protocol"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type Grades struct {
@@ -27,12 +29,20 @@ type Enrollment struct {
 	Grades   Grades `json:"grades"`
 }
 
+type CanvasErrInfo struct {
+	Message string `json:"message"`
+}
+
+type CanvasErrs struct {
+	Errors []CanvasErrInfo `json:"errors"`
+}
+
 type User struct {
-	ID          int          `json:"id"`
-	Name        string       `json:"name"`
-	ShortName   string       `json:"short_name"`
-	LoginId     string       `json:"login_id"`
-	Enrollments []Enrollment `json:"enrollments"`
+	ID          int          `json:"id,omitempty"`
+	Name        string       `json:"name,omitempty"`
+	ShortName   string       `json:"short_name,omitempty"`
+	LoginId     string       `json:"login_id,omitempty"`
+	Enrollments []Enrollment `json:"enrollments,omitempty"`
 }
 
 // 计算评分等级
@@ -67,11 +77,60 @@ func gradingStandards(val float64) string {
 	return grade
 }
 
+func getAllCourses() []string {
+	apiConf := config.Config.MySQL["api"]
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		apiConf.Username,
+		apiConf.Password,
+		apiConf.Host,
+		apiConf.Port,
+		apiConf.Dbname)
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	if err = db.Ping(); err != nil {
+		log.Fatal(err)
+	}
+
+	sql := "SELECT `course_id` FROM `courses` WHERE `deleted_at` IS NULL"
+	rows, err := db.Query(sql)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	var courseId string
+	courses := make([]string, 0)
+	for rows.Next() {
+		err := rows.Scan(&courseId)
+		if err != nil {
+			log.Fatal(err)
+		}
+		courses = append(courses, courseId)
+	}
+	if err = rows.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	return courses
+}
+
 func main() {
 	// 设置日志格式
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	log.Println("Main start...")
+
+	// 加载配置文件
+	configFilePath := flag.String("config_file_path", "", "The config file path.(Required)")
+	flag.Parse()
+	if *configFilePath == "" {
+		log.Fatal("config_file_path is required.")
+	}
+	config.Load(*configFilePath)
 
 	q := url.Values{}
 	q.Add("enrollment_state[]", "active")
@@ -87,13 +146,15 @@ func main() {
 	client := &http.Client{}
 
 	// TODO 获取所有课程
-	var courses []int = []int{55}
+	var courses []string = getAllCourses()
+	log.Printf("All courses: %v\n", courses)
+
 loop:
 	for _, courseId := range courses {
 		// 每个课程所有评分等级对应的人数
 		gradeUsers := make(map[string]int)
 
-		u, err := url.Parse(fmt.Sprintf("%s/api/v1/courses/%d/users", config.Config.Common.CanvasHost, courseId))
+		u, err := url.Parse(fmt.Sprintf("%s/api/v1/courses/%s/users", config.Config.Common.CanvasHost, courseId))
 		if err != nil {
 			log.Println(err)
 			break loop
@@ -104,15 +165,21 @@ loop:
 		for {
 			//log.Println(urlStr)
 			r, _ := http.NewRequest("GET", urlStr, nil)
-			r.Header.Add("Authorization", "Bearer uUDNCm1ViEun51G7qJr7MdFplegLHA8MSirAbfntC9YcAz0YnhnsShxPo9URNT1u")
+			r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", config.Config.Common.CanvasToken))
 			resp, _ := client.Do(r)
 			defer resp.Body.Close()
 
-			var users []User
 			body, _ := ioutil.ReadAll(resp.Body)
-			if err := json.Unmarshal(body, &users); err != nil {
-				log.Println(err)
-				break loop
+			var canvasErrs CanvasErrs
+			var users []User
+			if err := json.Unmarshal(body, &canvasErrs); err == nil {
+				log.Printf("Failed to request %s, resp: %s\n", urlStr, string(body))
+				break
+			} else {
+				if err := json.Unmarshal(body, &users); err != nil {
+					log.Println(err)
+					break loop
+				}
 			}
 			log.Printf("Courser users: %#v\n", users)
 
@@ -151,7 +218,7 @@ loop:
 			statFactor := &protocol.StatFactor{
 				Stype:  "23",
 				Oid:    "0",
-				Sid:    strconv.Itoa(courseId),
+				Sid:    courseId,
 				Subkey: gradeStandard,
 				Value:  float64(userCount),
 			}
