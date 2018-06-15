@@ -93,7 +93,7 @@ loop:
 		// 每个课程所有评分等级对应的人数
 		gradeUsers := make(map[string]int)
 
-		u, err := url.Parse(fmt.Sprintf("%s/api/v1/courses/%d/users", config.Config.CommonInfo.CanvasHost, courseId))
+		u, err := url.Parse(fmt.Sprintf("%s/api/v1/courses/%d/users", config.Config.Common.CanvasHost, courseId))
 		if err != nil {
 			log.Println(err)
 			break loop
