@@ -17,6 +17,7 @@ type TomlConfig struct {
 	Stat    Stat
 	SSDB    SSDB
 	MySQL   map[string]MySQL
+	Kafka   Kafka
 }
 
 type CommonInfo struct {
@@ -62,6 +63,10 @@ type SSDB struct {
 	Host string
 	Port int
 	Auth string
+}
+
+type Kafka struct {
+	Servers string
 }
 
 type MySQL struct {

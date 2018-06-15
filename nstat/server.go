@@ -26,7 +26,7 @@ var stopCh chan struct{} = make(chan struct{})
 // to close the additional signal channel (stopCh).
 // Its sender is any goroutine, its receivers is the
 // moderator goroutine.
-var toStop chan string = make(chan string)
+var toStop chan string = make(chan string, 1)
 
 // City ip db object
 var cityipdb *datx.City
@@ -157,6 +157,17 @@ func Run() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
+	// Start the moderator goroutine.
+	go func() {
+		select {
+		case <-toStop:
+			close(stopCh)
+		case <-interrupt:
+			close(stopCh)
+		}
+		log.Println("Moderator goroutine quit...")
+	}()
+
 	var wg sync.WaitGroup
 	wg.Add(4)
 
@@ -194,17 +205,6 @@ func Run() {
 		}
 		log.Printf("Timing loader quit...\n")
 	}(&wg)
-
-	// Start the moderator goroutine.
-	go func() {
-		select {
-		case <-toStop:
-			close(stopCh)
-		case <-interrupt:
-			close(stopCh)
-		}
-		log.Println("Moderator goroutine quit...")
-	}()
 
 	wg.Wait()
 	log.Println("Main goroutine quit...")

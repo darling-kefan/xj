@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/darling-kefan/xj/config"
 	"github.com/darling-kefan/xj/nstat/protocol"
 	"github.com/segmentio/ksuid"
 )
@@ -38,7 +39,7 @@ func (c *collector) run(wg *sync.WaitGroup) {
 	groupID := ksuid.New().String()
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"client.id":                       "nstat",
-		"bootstrap.servers":               "localhost:9092",
+		"bootstrap.servers":               config.Config.Kafka.Servers,
 		"group.id":                        groupID,
 		"session.timeout.ms":              6000, // TODO 6s还是6000s???
 		"enable.auto.commit":              false,
@@ -47,7 +48,7 @@ func (c *collector) run(wg *sync.WaitGroup) {
 		"default.topic.config":            kafka.ConfigMap{"auto.offset.reset": "earliest"},
 	})
 	if err != nil {
-		log.Println(err)
+		log.Println("debug............", err)
 		// 通知其它goroutine退出
 		toStop <- "stop"
 		return
