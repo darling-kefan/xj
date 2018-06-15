@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/darling-kefan/xj/config"
 	"github.com/darling-kefan/xj/nstat"
 	"github.com/darling-kefan/xj/nstat/protocol"
 )
@@ -92,7 +93,7 @@ loop:
 		// 每个课程所有评分等级对应的人数
 		gradeUsers := make(map[string]int)
 
-		u, err := url.Parse(fmt.Sprintf("https://canvas.ndmooc.com/api/v1/courses/%d/users", courseId))
+		u, err := url.Parse(fmt.Sprintf("%s/api/v1/courses/%d/users", config.Config.CommonInfo.CanvasHost, courseId))
 		if err != nil {
 			log.Println(err)
 			break loop

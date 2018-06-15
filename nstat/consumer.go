@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/darling-kefan/xj/config"
 	"github.com/darling-kefan/xj/nstat/protocol"
 )
 
@@ -139,11 +141,10 @@ func CommitFactors(factors []*protocol.StatFactor) error {
 	if err != nil {
 		return err
 	}
-
 	log.Printf("%s\n", string(jsonStream))
 
 	// 请求接口,同步到ssdb
-	url := "http://local.nstat.ndmooc.com/v1/stat/add"
+	url := fmt.Sprintf("%s/v1/stat/add", config.Config.CommonInfo.StatHost)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStream))
 	req.Header.Set("Content-Type", "application/json")
 

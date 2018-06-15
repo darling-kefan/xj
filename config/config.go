@@ -24,6 +24,8 @@ type CommonInfo struct {
 	Pmspath        string
 	NdscloudScheme string
 	NdscloudDomain string
+	StatHost       string
+	CanvasHost     string
 }
 
 type RedisInfo struct {
