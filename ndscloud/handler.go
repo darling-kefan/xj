@@ -66,8 +66,8 @@ func ServeWs(hub *Hub, c *gin.Context) {
 	}
 	if _, err := redconn.Do("SELECT", redconf.DB); err != nil {
 		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
-		redconn.Close()
 		conn.Close()
+		redconn.Close()
 		return
 	}
 
@@ -75,6 +75,9 @@ func ServeWs(hub *Hub, c *gin.Context) {
 	client, err := NewClient(token, unitId, redconn, conn, hub)
 	if err != nil {
 		log.Println(err)
+		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+		conn.Close()
+		redconn.Close()
 		return
 	}
 

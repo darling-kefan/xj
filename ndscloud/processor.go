@@ -26,16 +26,23 @@ func (c *Client) process(raw []byte) {
 		// 判断是否广播上线消息，一个客户端上线只广播一次消息
 		isSendOnlineMsg := false
 
-		c.vi = message.Vi
-		c.hw = message.Hw
-		if message.Os != "" {
-			c.os = message.Os
-		}
-		if message.Dt != "" {
-			c.dt = message.Dt
-		}
 		// 注册时间只在第一次注册时设置
 		if !c.isRegistered {
+			switch v := c.info.(type) {
+			case *UserInfo:
+				v.Vi = message.Vi
+				v.Hw = message.Hw
+				if message.Os != "" {
+					v.Os = message.Os
+				}
+			case *DeviceInfo:
+				v.Vi = message.Vi
+				v.Hw = message.Hw
+				if message.Dt != "" {
+					v.Dt = message.Dt
+				}
+			}
+
 			c.isRegistered = true
 			c.registeredAt = time.Now().UnixNano()
 			// 是否发送上线消息
@@ -47,27 +54,31 @@ func (c *Client) process(raw []byte) {
 		// 推送上线消息
 		if isSendOnlineMsg {
 			if c.isUser() {
+				userInfo := c.info.(*UserInfo)
+				log.Printf("%#v\n", userInfo)
 				instruction := &UsrOnlineMsg{
 					Act:    "8",
 					Uid:    c.id,
-					Nm:     c.info.(*UserInfo).Nickname,
+					Nm:     userInfo.Nickname,
 					Sex:    strconv.Itoa(c.info.(*UserInfo).Sex),
 					Idt:    strconv.Itoa(c.identity),
-					Os:     c.os,
-					Vi:     c.vi,
-					Hw:     c.hw,
+					Os:     userInfo.Os,
+					Vi:     userInfo.Vi,
+					Hw:     userInfo.Hw,
 					Sender: c.id,
 					Unit:   c.unitId,
 				}
 				c.hub.inbound <- instruction
 			} else if c.isDevice() {
+				deviceInfo := c.info.(*DeviceInfo)
+				log.Printf("%#v\n", deviceInfo)
 				instruction := &DevOnlineMsg{
 					Act:    "10",
 					Did:    c.id,
 					Nm:     c.id,
-					Dt:     c.dt,
-					Vi:     c.vi,
-					Hw:     c.hw,
+					Dt:     deviceInfo.Dt,
+					Vi:     deviceInfo.Vi,
+					Hw:     deviceInfo.Hw,
 					Sender: c.id,
 					Unit:   c.unitId,
 				}
@@ -161,29 +172,54 @@ func (c *Client) process(raw []byte) {
 	case *ModStatusMsg:
 
 	case *UsrOnlineMsg:
-		message.Sender = c.id
-		message.Unit = c.unitId
-		c.hub.inbound <- message
 	case *UsrOfflineMsg:
+		if message.Uid == c.id {
+			c.logout("Terminate client")
+		} else {
+			if c.isLocalControl() {
+				c.localUsers.Remove(message.Uid)
+			}
+		}
+		// 广播下线通知
 		message.Sender = c.id
 		message.Unit = c.unitId
 		c.hub.inbound <- message
 	case *DevOnlineMsg:
-		message.Sender = c.id
-		message.Unit = c.unitId
-		c.hub.inbound <- message
 	case *DevOfflineMsg:
+		if message.Did == c.id {
+			c.logout("Terminate client")
+		} else {
+			if c.isLocalControl() {
+				c.localDevices.Remove(message.Did)
+			}
+		}
+		// 广播下线通知
 		message.Sender = c.id
 		message.Unit = c.unitId
 		c.hub.inbound <- message
 	case *UnitControlMsg:
-
+		stat := message.Msg.(map[string]interface{})["stat"]
+		if stat == "1" {
+			// 开始课程
+		} else if stat == "2" {
+			// 结束课程
+			c.logout("Terminate, end course")
+		}
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	case *PullInkMsg:
-
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	case *EndPullInkMsg:
-
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	case *ChatTextMsg:
-
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	default:
 	}
 

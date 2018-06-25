@@ -109,7 +109,7 @@ type DevOfflineMsg struct {
 	Unit   string `json:"-"`
 }
 
-// 单元控制(开始/结束)消息
+// 单元控制(开始/结束)消息Act=12
 type UnitControlMsg struct {
 	Act    string      `json:"act"`
 	From   string      `json:"from"`
@@ -118,7 +118,7 @@ type UnitControlMsg struct {
 	Unit   string      `json:"-"`
 }
 
-// 开始接收笔迹
+// 开始接收笔迹Act=13
 type PullInkMsg struct {
 	Act    string `json:"act"`
 	From   string `json:"from"`
@@ -127,7 +127,7 @@ type PullInkMsg struct {
 	Unit   string `json:"-"`
 }
 
-// 结束接收笔迹
+// 结束接收笔迹Act=14
 type EndPullInkMsg struct {
 	Act    string `json:"act"`
 	From   string `json:"from"`

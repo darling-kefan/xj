@@ -21,9 +21,9 @@ type Hub struct {
 	clients map[string]*Client
 
 	// UnitId to IDs mapping
-	unitmap map[string]*UnitCache
+	clientSet map[string]*UnitCache
 
-	// The lock used for Hub.clients and Hub.unitmap
+	// The lock used for Hub.clients and Hub.clientSet
 	mutex sync.RWMutex
 
 	// Inbound messages from the clients. Handle ordinary text messages.
@@ -54,7 +54,7 @@ type UnitCache struct {
 func NewHub() *Hub {
 	return &Hub{
 		clients:     make(map[string]*Client),
-		unitmap:     make(map[string]*UnitCache),
+		clientSet:   make(map[string]*UnitCache),
 		inbound:     make(chan interface{}),
 		inbound_pms: make(chan []byte),
 		register:    make(chan *Client),
@@ -74,7 +74,7 @@ func (h *Hub) add(clients ...*Client) {
 		h.clients[client.id] = client
 
 		// 获取客户端缓存，存在返回；不存在，则初始化。
-		if uc, found = h.unitmap[client.unitId]; !found {
+		if uc, found = h.clientSet[client.unitId]; !found {
 			uc = &UnitCache{
 				All: make(map[string]struct{}),
 				Tea: make(map[string]struct{}),
@@ -82,7 +82,7 @@ func (h *Hub) add(clients ...*Client) {
 				Dev: make(map[string]struct{}),
 				Nds: make(map[string]struct{}),
 			}
-			h.unitmap[client.unitId] = uc
+			h.clientSet[client.unitId] = uc
 		}
 		// 全体
 		uc.All[client.id] = struct{}{}
@@ -117,7 +117,7 @@ func (h *Hub) remove(clients ...*Client) {
 		}
 
 		// Clear unit cache
-		if uc, ok := h.unitmap[client.unitId]; ok {
+		if uc, ok := h.clientSet[client.unitId]; ok {
 			delete(uc.All, client.id)
 			if client.identity == 1 {
 				// 老师
@@ -139,13 +139,13 @@ func (h *Hub) removebyunitid(unitid string) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	if uc, ok := h.unitmap[unitid]; ok {
+	if uc, ok := h.clientSet[unitid]; ok {
 		for id, _ := range uc.All {
 			// close client websocket connection
 			close(h.clients[id].outbound)
 			delete(h.clients, id)
 		}
-		delete(h.unitmap, unitid)
+		delete(h.clientSet, unitid)
 	}
 }
 
@@ -188,14 +188,14 @@ func (h *Hub) getrecversbyto(to string, unitid string) (receiverSet map[string]s
 	for _, group := range groups {
 		switch group {
 		case "A":
-			receiverSet = h.unitmap[unitid].All
+			receiverSet = h.clientSet[unitid].All
 			return
 		case "T":
-			receiverSet = h.unitmap[unitid].Tea
+			receiverSet = h.clientSet[unitid].Tea
 		case "S":
-			receiverSet = h.unitmap[unitid].Stu
+			receiverSet = h.clientSet[unitid].Stu
 		case "D":
-			receiverSet = h.unitmap[unitid].Dev
+			receiverSet = h.clientSet[unitid].Dev
 		default:
 		}
 	}
@@ -227,23 +227,23 @@ func (h *Hub) msgrecvers(message interface{}) (receivers []string) {
 	case *UsrOnlineMsg:
 		sender = msg.Sender
 		toSender = false
-		receiverSet = h.unitmap[msg.Unit].All
+		receiverSet = h.clientSet[msg.Unit].All
 	case *UsrOfflineMsg:
 		sender = msg.Sender
 		toSender = false
-		receiverSet = h.unitmap[msg.Unit].All
+		receiverSet = h.clientSet[msg.Unit].All
 	case *DevOnlineMsg:
 		sender = msg.Sender
 		toSender = false
-		receiverSet = h.unitmap[msg.Unit].All
+		receiverSet = h.clientSet[msg.Unit].All
 	case *DevOfflineMsg:
 		sender = msg.Sender
 		toSender = false
-		receiverSet = h.unitmap[msg.Unit].All
+		receiverSet = h.clientSet[msg.Unit].All
 	case *UnitControlMsg:
 		sender = msg.Sender
 		toSender = false
-		receiverSet = h.unitmap[msg.Unit].All
+		receiverSet = h.clientSet[msg.Unit].All
 	case *PullInkMsg:
 		// 开始接收笔迹消息不转发
 	case *EndPullInkMsg:
@@ -251,11 +251,11 @@ func (h *Hub) msgrecvers(message interface{}) (receivers []string) {
 	case *ChatTextMsg:
 		sender = msg.Sender
 		toSender = false
-		receiverSet = h.unitmap[msg.Unit].All
+		receiverSet = h.clientSet[msg.Unit].All
 	}
 
 	// Remove sender
-	// TODO ids存的是map的地址，此处执行delete会真正删除hub.unitmap里的内容。
+	// TODO ids存的是map的地址，此处执行delete会真正删除hub.clientSet里的内容。
 	//if !toSender {
 	//	delete(ids, sender)
 	//}
@@ -292,7 +292,7 @@ func (h *Hub) Run() {
 		case message := <-h.inbound:
 			if msg, err := json.Marshal(message); err == nil {
 				receivers := h.msgrecvers(message)
-				log.Printf("Message: %v, receivers: %v\n", message, receivers)
+				log.Printf("Message: %#v, receivers: %v\n", message, receivers)
 				for _, id := range receivers {
 					// 判断to中的个人id是否已经注册到云端
 					if _, ok := h.clients[id]; ok {

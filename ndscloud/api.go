@@ -91,19 +91,31 @@ func getTokenInfo(token string) (interface{}, error) {
 	}
 	defer resp.Body.Close()
 
-	var tokenInfo TokenInfo
-	err = json.Unmarshal(body, &tokenInfo)
-	if err != nil {
+	var flagStruct struct {
+		Uid      string `json:"uid"`
+		ClientId string `json:"client_id"`
+	}
+	if err = json.Unmarshal(body, &flagStruct); err != nil {
 		return nil, err
 	}
 
-	if tokenInfo.Uid != "" {
-		return &tokenInfo.UserInfo, nil
+	if flagStruct.Uid != "" {
+		var userInfo UserInfo
+		err = json.Unmarshal(body, &userInfo)
+		if err != nil {
+			return nil, err
+		}
+		return &userInfo, nil
+	} else if flagStruct.ClientId != "" {
+		var deviceInfo DeviceInfo
+		err = json.Unmarshal(body, &deviceInfo)
+		if err != nil {
+			return nil, err
+		}
+		if deviceInfo.Config.Device.DeviceType != 0 {
+			return &deviceInfo, nil
+		}
 	}
 
-	if tokenInfo.Config.Device.DeviceType != "0" {
-		return &tokenInfo.DeviceInfo, nil
-	}
-
-	return nil, nil
+	return nil, errors.New("Invalid token.")
 }
