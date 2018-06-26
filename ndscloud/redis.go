@@ -10,10 +10,10 @@ var (
 
 	// 存储模块状态指令(hash: instr_mod -> content)
 	// fmt.Sprintf(this, unitId, sceneId)
-	modInstrsKeyFormat string = "nc:ins:mod:%s:%d"
+	modInsKeyFormat string = "nc:ins:mod:%s:%d"
 	// 模块状态指令历史前缀
 	// fmt.Sprintf(this, unitId, sceneId, curmod)
-	modInstrsHistoryKeyFormat string = "nc:ins:mod:his:%s:%d:%s"
+	modInsHistoryKeyFormat string = "nc:ins:mod:his:%s:%d:%s"
 
 	// 群聊(文字聊天)(list)
 	// fmt.Sprintf(this, unitId, sceneId)

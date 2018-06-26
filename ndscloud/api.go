@@ -3,6 +3,7 @@ package ndscloud
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	//"log"
 	"net/http"
@@ -118,4 +119,55 @@ func getTokenInfo(token string) (interface{}, error) {
 	}
 
 	return nil, errors.New("Invalid token.")
+}
+
+// 根据unitId查询当前课程是否免费
+func isPublicAndPremium(unitId string) (bool, error) {
+	type JsonResp struct {
+		Errcode int         `json:"errcode"`
+		Errmsg  string      `json:"errmsg"`
+		Data    interface{} `json:"data,omitempty"`
+	}
+	// 获取courseId
+	u := strings.Replace(config.Config.Api.UnitInfo, ":unit_id", unitId, -1)
+	res, err := http.Get(u)
+	if err != nil {
+		return false, err
+	}
+	body, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		return false, err
+	}
+	var resp JsonResp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return false, err
+	}
+	if resp.Errcode != 0 {
+		return false, errors.New(resp.Errmsg)
+	}
+	courseId := resp.Data.(map[string]interface{})["course_id"].(string)
+
+	// 获取课程详情
+	u = fmt.Sprintf("%s/v1/courses/%s/detail", config.Config.Api.Domain, courseId)
+	res, err = http.Get(u)
+	if err != nil {
+		return false, err
+	}
+	body, err = ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		return false, err
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return false, err
+	}
+	if resp.Errcode != 0 {
+		return false, errors.New(resp.Errmsg)
+	}
+	data := resp.Data.(map[string]interface{})
+	if data["public"].(string) == "1" && data["premium"].(string) == "1" {
+		return true, nil
+	}
+	return false, nil
 }

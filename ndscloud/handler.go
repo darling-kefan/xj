@@ -12,12 +12,70 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func ServeUsers(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"status":  "posted",
-		"message": "hello world",
-		"nick":    "tangshouqiang",
-	})
+func render(c *gin.Context, errcode int, errmsg error, data interface{}) {
+	c.JSON(
+		http.StatusOK,
+		gin.H{
+			"errcode": errcode,
+			"errmsg":  errmsg,
+			"data":    data,
+		},
+	)
+}
+
+// TODO 如何支持JSONP???
+func ServeUsers(hub *Hub, c *gin.Context) {
+	unitId := c.Param("unit_id")
+
+	// 判断课程是否公开/免费
+	ok, err := isPublicAndPremium(unitId)
+	if err != nil {
+		c.JSON(
+			http.StatusOK,
+			gin.H{
+				"errcode": 1,
+				"errmsg":  err.Error(),
+			},
+		)
+		return
+	}
+	// 验证token
+	if !ok {
+		token := c.Query("token")
+		if token == "" {
+			c.JSON(
+				http.StatusOK,
+				gin.H{
+					"errcode": 1,
+					"errmsg":  "missing param token",
+				},
+			)
+			return
+		}
+		if _, err := getTokenInfo(token); err != nil {
+			c.JSON(
+				http.StatusOK,
+				gin.H{
+					"errcode": 1,
+					"errmsg":  err.Error(),
+				},
+			)
+			return
+		}
+	}
+
+	clients := hub.list()
+
+	log.Printf("%#v\n", clients)
+
+	c.JSON(
+		http.StatusOK,
+		gin.H{
+			"status":  "posted",
+			"message": "hello world",
+			"nick":    "tangshouqiang",
+		},
+	)
 }
 
 var upgrader = websocket.Upgrader{
@@ -97,7 +155,7 @@ func ServeWs(hub *Hub, c *gin.Context) {
 			if client == hub.get(client.id) && !client.isRegistered {
 				hub.unregister <- client
 			}
-		case <-client.outbound:
+		case <-client.stopreg:
 			// 如果客户端已经下线，则退出倒计时goroutine
 			return
 		}

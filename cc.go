@@ -37,7 +37,10 @@ func main() {
 
 	v2 := router.Group("/v2")
 	{
-		v2.GET("units/:unit_id/users", ndscloud.ServeUsers)
+		//v2.GET("units/:unit_id/users1", ndscloud.ServeUsers)
+		v2.GET("units/:unit_id/users", func(c *gin.Context) {
+			ndscloud.ServeUsers(hub, c)
+		})
 		v2.GET("ngx/center/units/:unit_id/", func(c *gin.Context) {
 			//ndscloud.ServeWs(hub, c.Writer, c.Request)
 			ndscloud.ServeWs(hub, c)

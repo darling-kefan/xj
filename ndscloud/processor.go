@@ -1,9 +1,13 @@
 package ndscloud
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"strconv"
 	"time"
+
+	"github.com/gomodule/redigo/redis"
 )
 
 // 负责从客户端接收消息，并解析、处理、转发等
@@ -11,7 +15,7 @@ import (
 func (c *Client) process(raw []byte) {
 	unmarshalRaw, err := UnmarshalMessage(raw)
 	if err != nil {
-		log.Println(err)
+		log.Printf("[%s] %s\n", c.id, err)
 		return
 	}
 
@@ -19,7 +23,7 @@ func (c *Client) process(raw []byte) {
 	case *RegMsg:
 		// 判断注册消息是否和客户端身份匹配
 		if (c.isDevice() && message.Dt == "") || (c.isUser() && message.Dt != "") {
-			log.Println("bad registration message format: user connect!")
+			log.Printf("[%s] bad registration message format: user connect!\n", c.id)
 			return
 		}
 
@@ -49,13 +53,14 @@ func (c *Client) process(raw []byte) {
 			isSendOnlineMsg = true
 			// 用户注册到Hub
 			c.hub.register <- c
+			// 退出registration countdown goroutine
+			close(c.stopreg)
 		}
 
 		// 推送上线消息
 		if isSendOnlineMsg {
 			if c.isUser() {
 				userInfo := c.info.(*UserInfo)
-				log.Printf("%#v\n", userInfo)
 				instruction := &UsrOnlineMsg{
 					Act:    "8",
 					Uid:    c.id,
@@ -71,7 +76,6 @@ func (c *Client) process(raw []byte) {
 				c.hub.inbound <- instruction
 			} else if c.isDevice() {
 				deviceInfo := c.info.(*DeviceInfo)
-				log.Printf("%#v\n", deviceInfo)
 				instruction := &DevOnlineMsg{
 					Act:    "10",
 					Did:    c.id,
@@ -161,16 +165,105 @@ func (c *Client) process(raw []byte) {
 			}
 		} else {
 			log.Printf("[%s] Not local control, discard message.\n", c.id)
+			return
 		}
 	case *OrdinaryMsg:
 		if message.To == "" {
-			log.Printf("[%s] No field 'to', discard message.\n", c.id)
+			log.Printf("[%s] No field 'to', discard message.\n")
+			c.notice("No field 'to', discard message.")
+			return
 		}
 		message.Sender = c.id
 		message.Unit = c.unitId
 		c.hub.inbound <- message
 	case *ModStatusMsg:
+		if message.To == "" {
+			log.Printf("[%s] No field 'to', discard message.\n", c.id)
+			c.notice("No field 'to', discard message.")
+			return
+		}
 
+		// 获取当前单元模块
+		if message.Mod != "" {
+			c.unitInfo.Curmod = message.Mod
+		}
+
+		// 记录状态指令历史
+		message.CreatedAt = time.Now().Unix()
+		storeData, _ := json.Marshal(message)
+		modInsHisKey := fmt.Sprintf(modInsHistoryKeyFormat, c.unitId, c.unitInfo.SceneId, c.unitInfo.Curmod)
+		if _, err = c.redconn.Do("RPUSH", modInsHisKey, string(storeData)); err != nil {
+			c.notice("Failed to rpush " + modInsHisKey)
+			c.logout("Failed to rpush " + modInsHisKey)
+			return
+		}
+		log.Printf("[%s] RPUSH %s %s", c.id, modInsHisKey, string(storeData))
+
+		// 更新当前单元模块状态
+		modInsKey := fmt.Sprintf(modInsKeyFormat, c.unitId, c.unitInfo.SceneId)
+		ret, err := redis.Bytes(c.redconn.Do("HGET", modInsKey, c.unitInfo.Curmod))
+		if err != nil && err != redis.ErrNil {
+			log.Printf("[%s] Failed to hget %s, error: %s\n", c.id, modInsKey, err)
+			c.logout("Failed to hget " + modInsKey)
+			return
+		}
+		log.Printf("debug........... %#v, %#v\n", string(ret), err)
+
+		if ret == nil {
+			if message.Mod == "" || message.To == "" {
+				log.Printf("[%s] Field 'mod' or 'to' not exists, can't be init, discard the instruction.\n", c.id)
+				c.notice("Field 'mod' or 'to' not exists, can't be init, discard the instruction.")
+				return
+			}
+
+			message.UpdatedAt = time.Now().Unix()
+			storeData, _ = json.Marshal(message)
+			if _, err := c.redconn.Do("HSET", modInsKey, c.unitInfo.Curmod, storeData); err != nil {
+				log.Printf("[%s] Failed to hset %s, error: %s\n", c.id, modInsKey, err)
+				c.logout("Failed to hset " + modInsKey)
+				return
+			}
+			log.Printf("[%s] HSET %s %s %s", c.id, modInsKey, c.unitInfo.Curmod, storeData)
+		} else {
+			incrmsg, ok := message.Msg.(map[string]interface{})
+			if !ok {
+				log.Printf("[%s] field 'msg' not exists, discard the instruction\n", c.id)
+				c.notice("field 'msg' not exists, discard the instruction")
+				return
+			}
+
+			var curstat ModStatusMsg
+			if err := json.Unmarshal(ret, &curstat); err != nil {
+				log.Printf("[%s] Failed to json.Marshal: %s\n", c.id, err)
+				c.notice("Json format error")
+				return
+			}
+
+			curstat.UpdatedAt = time.Now().Unix()
+			curstat.To = message.To
+
+			currmsg, ok := curstat.Msg.(map[string]interface{})
+			if !ok || (incrmsg["nm"] != nil && incrmsg["nm"] != currmsg["nm"]) {
+				curstat.Msg = message.Msg
+			} else {
+				for k, v := range incrmsg {
+					currmsg[k] = v
+				}
+				curstat.Msg = currmsg
+			}
+
+			storeData, _ = json.Marshal(curstat)
+			if _, err := c.redconn.Do("HSET", modInsKey, c.unitInfo.Curmod, storeData); err != nil {
+				log.Printf("[%s] Failed to hset %s, error: %s\n", c.id, modInsKey, err)
+				c.logout("Failed to hset " + modInsKey)
+				return
+			}
+			log.Printf("[%s] HSET %s %s %s\n", c.id, modInsKey, c.unitInfo.Curmod, storeData)
+		}
+
+		message.Sender = c.id
+		message.Unit = c.unitId
+		c.hub.inbound <- message
 	case *UsrOnlineMsg:
 	case *UsrOfflineMsg:
 		if message.Uid == c.id {
@@ -193,6 +286,7 @@ func (c *Client) process(raw []byte) {
 				c.localDevices.Remove(message.Did)
 			}
 		}
+
 		// 广播下线通知
 		message.Sender = c.id
 		message.Unit = c.unitId
@@ -201,10 +295,31 @@ func (c *Client) process(raw []byte) {
 		stat := message.Msg.(map[string]interface{})["stat"]
 		if stat == "1" {
 			// 开始课程
+			sceneInfo := map[string]interface{}{
+				"unit_id":    c.unitId,
+				"scene_id":   c.unitInfo.SceneId,
+				"start_time": time.Now().Unix(),
+			}
+			b, err := json.Marshal(sceneInfo)
+			if err != nil {
+				c.logout(err.Error())
+				return
+			}
+			sceneKey := fmt.Sprintf(sceneKeyFormat, c.unitId, c.unitInfo.SceneId)
+			if _, err := c.redconn.Do("SET", sceneKey, string(b)); err != nil {
+				c.logout(err.Error())
+				return
+			}
+			c.log(fmt.Sprintf("SET %s %s", sceneKey, string(b)))
+			log.Printf("[%s] SET %s %s\n", c.id, sceneKey, string(b))
 		} else if stat == "2" {
+			// TODO 结束单元逻辑
+
 			// 结束课程
 			c.logout("Terminate, end course")
+			return
 		}
+		// 广播课程状态消息
 		message.Sender = c.id
 		message.Unit = c.unitId
 		c.hub.inbound <- message
@@ -217,9 +332,32 @@ func (c *Client) process(raw []byte) {
 		message.Unit = c.unitId
 		c.hub.inbound <- message
 	case *ChatTextMsg:
+		text := message.Msg.(map[string]interface{})["c"].(string)
+		if len(text) > 100 {
+			c.notice("chat message too long")
+			return
+		}
+
+		// 广播文字聊天消息
+		message.CreatedAt = time.Now().Unix()
 		message.Sender = c.id
 		message.Unit = c.unitId
 		c.hub.inbound <- message
+
+		// 持久化文字聊天消息
+		storedMsg, err := json.Marshal(message)
+		if err != nil {
+			log.Printf("[%s] Failed to json.Marshal: %s\n", c.id, err)
+			c.notice("Json format error")
+			return
+		}
+		chatKey := fmt.Sprintf(chatKeyFormat, c.unitId, c.unitInfo.SceneId)
+		if _, err := c.redconn.Do("RPUSH", chatKey, string(storedMsg)); err != nil {
+			log.Printf("[%s] Failed to RPUSH chat message\n", c.id)
+			c.notice("Failed to RPUSH chat message")
+			return
+		}
+		log.Printf("[%s] RPUSH %s %s\n", c.id, chatKey, string(storedMsg))
 	default:
 	}
 

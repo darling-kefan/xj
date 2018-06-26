@@ -40,6 +40,9 @@ type Client struct {
 	// Buffered channel of outbound messages.
 	outbound chan []byte
 
+	// Stop channel is used to terminate registration countdown goroutine.
+	stopreg chan struct{}
+
 	// Used to uniquely identity users and devices.
 	id string
 
@@ -114,13 +117,17 @@ func NewClient(token string, unitId string, redconn redis.Conn, conn *websocket.
 	if err != nil && err != redis.ErrNil {
 		return nil, err
 	}
-	log.Printf("%v %#v\n", sceneIdKey, sceneId)
+	if sceneId == 0 {
+		sceneId = 1
+	}
+	unitInfo.SceneId = sceneId
 
 	client = &Client{
 		hub:          hub,
 		conn:         conn,
 		redconn:      redconn,
 		outbound:     make(chan []byte, 256),
+		stopreg:      make(chan struct{}),
 		id:           id,
 		identity:     identity,
 		info:         tokenInfo,
@@ -129,6 +136,8 @@ func NewClient(token string, unitId string, redconn redis.Conn, conn *websocket.
 		localUsers:   NewLocalUserSet(),
 		localDevices: NewLocalDeviceSet(),
 	}
+	// 重置错误变量
+	err = nil
 	return
 }
 
@@ -181,86 +190,10 @@ func (c *Client) logout(msg string) {
 	c.hub.unregister <- c
 }
 
-// ---------------------------------------------------------------------
-
-type LocalUserSet struct {
-	users map[string]LocalUsrRegItem
-	sync.RWMutex
-}
-
-func NewLocalUserSet() *LocalUserSet {
-	return &LocalUserSet{
-		users: make(map[string]LocalUsrRegItem),
-	}
-}
-
-func (ls *LocalUserSet) Clear() {
-	ls.Lock()
-	defer ls.Unlock()
-	ls.users = make(map[string]LocalUsrRegItem)
-}
-
-func (ls *LocalUserSet) Add(item LocalUsrRegItem) {
-	ls.Lock()
-	defer ls.Unlock()
-	ls.users[item.Uid] = item
-}
-
-func (ls *LocalUserSet) Remove(uid string) {
-	ls.Lock()
-	defer ls.Unlock()
-	delete(ls.users, uid)
-}
-
-func (ls *LocalUserSet) List() []LocalUsrRegItem {
-	ls.RLock()
-	defer ls.RUnlock()
-	list := make([]LocalUsrRegItem, 0)
-	for _, item := range ls.users {
-		list = append(list, item)
-	}
-	return list
-}
-
-// ---------------------------------------------------------------------
-
-type LocalDeviceSet struct {
-	devices map[string]LocalDevRegItem
-	sync.RWMutex
-}
-
-func NewLocalDeviceSet() *LocalDeviceSet {
-	return &LocalDeviceSet{
-		devices: make(map[string]LocalDevRegItem),
-	}
-}
-
-func (ld *LocalDeviceSet) Clear() {
-	ld.Lock()
-	defer ld.Unlock()
-	ld.devices = make(map[string]LocalDevRegItem)
-}
-
-func (ld *LocalDeviceSet) Add(item LocalDevRegItem) {
-	ld.Lock()
-	defer ld.Unlock()
-	ld.devices[item.Did] = item
-}
-
-func (ls *LocalDeviceSet) Remove(did string) {
-	ls.Lock()
-	defer ls.Unlock()
-	delete(ls.devices, did)
-}
-
-func (ld *LocalDeviceSet) List() []LocalDevRegItem {
-	ld.RLock()
-	defer ld.RUnlock()
-	list := make([]LocalDevRegItem, 0)
-	for _, item := range ld.devices {
-		list = append(list, item)
-	}
-	return list
+// notice to the client
+func (c *Client) notice(msg string) {
+	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	c.conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"errcode": 1, "errmsg": "%s"}`, msg)))
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -360,4 +293,91 @@ func (c *Client) writePump() {
 			}
 		}
 	}
+}
+
+// 记录日志
+func (c *Client) log(msg string) {
+	log.Printf("[%s] %s\n", c.id, msg)
+}
+
+// ---------------------------------------------------------------------
+
+type LocalUserSet struct {
+	users map[string]LocalUsrRegItem
+	sync.RWMutex
+}
+
+func NewLocalUserSet() *LocalUserSet {
+	return &LocalUserSet{
+		users: make(map[string]LocalUsrRegItem),
+	}
+}
+
+func (ls *LocalUserSet) Clear() {
+	ls.Lock()
+	defer ls.Unlock()
+	ls.users = make(map[string]LocalUsrRegItem)
+}
+
+func (ls *LocalUserSet) Add(item LocalUsrRegItem) {
+	ls.Lock()
+	defer ls.Unlock()
+	ls.users[item.Uid] = item
+}
+
+func (ls *LocalUserSet) Remove(uid string) {
+	ls.Lock()
+	defer ls.Unlock()
+	delete(ls.users, uid)
+}
+
+func (ls *LocalUserSet) List() []LocalUsrRegItem {
+	ls.RLock()
+	defer ls.RUnlock()
+	list := make([]LocalUsrRegItem, 0)
+	for _, item := range ls.users {
+		list = append(list, item)
+	}
+	return list
+}
+
+// ---------------------------------------------------------------------
+
+type LocalDeviceSet struct {
+	devices map[string]LocalDevRegItem
+	sync.RWMutex
+}
+
+func NewLocalDeviceSet() *LocalDeviceSet {
+	return &LocalDeviceSet{
+		devices: make(map[string]LocalDevRegItem),
+	}
+}
+
+func (ld *LocalDeviceSet) Clear() {
+	ld.Lock()
+	defer ld.Unlock()
+	ld.devices = make(map[string]LocalDevRegItem)
+}
+
+func (ld *LocalDeviceSet) Add(item LocalDevRegItem) {
+	ld.Lock()
+	defer ld.Unlock()
+	ld.devices[item.Did] = item
+}
+
+func (ls *LocalDeviceSet) Remove(did string) {
+	ls.Lock()
+	defer ls.Unlock()
+	delete(ls.devices, did)
+}
+
+func (ld *LocalDeviceSet) List() []LocalDevRegItem {
+	ld.RLock()
+	defer ld.RUnlock()
+	list := make([]LocalDevRegItem, 0)
+	for _, item := range ld.devices {
+		list = append(list, item)
+	}
+	return list
 }

@@ -63,6 +63,7 @@ type ModStatusMsg struct {
 	To        string      `json:"to"`
 	Msg       interface{} `json:"msg"`
 	CreatedAt int64       `json:"created_at"`
+	UpdatedAt int64       `json:"updated_at"`
 	Sender    string      `json:"-"`
 	Unit      string      `json:"-"`
 }
