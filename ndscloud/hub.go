@@ -113,7 +113,6 @@ func (h *Hub) remove(clients ...*Client) {
 		if _, ok := h.clients[client.id]; ok {
 			// close client websocket connection
 			close(client.outbound)
-			close(client.stopreg)
 			delete(h.clients, client.id)
 		}
 

@@ -26,6 +26,7 @@ func main() {
 
 	router := gin.Default()
 
+	// /v2/units/:unit_id/scenes/list?token=:token
 	// /v2/units/:unit_id/users?token=:access_token
 	// /v2/units/:unit_id/modules/status?token=:access_token
 	// /v2/units/:unit_id/modules/list?token=:access_token
@@ -37,10 +38,13 @@ func main() {
 
 	v2 := router.Group("/v2")
 	{
-		//v2.GET("units/:unit_id/users1", ndscloud.ServeUsers)
+		v2.GET("units/:unit_id/scenes/list", ndscloud.ServeScenes)
 		v2.GET("units/:unit_id/users", func(c *gin.Context) {
 			ndscloud.ServeUsers(hub, c)
 		})
+		v2.GET("units/:unit_id/modules/status", ndscloud.ServeModStatus)
+		v2.GET("units/:unit_id/modules/list", ndscloud.ServeModList)
+		v2.GET("units/:unit_id/chat/message", ndscloud.ServeChats)
 		v2.GET("ngx/center/units/:unit_id/", func(c *gin.Context) {
 			//ndscloud.ServeWs(hub, c.Writer, c.Request)
 			ndscloud.ServeWs(hub, c)

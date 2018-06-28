@@ -118,6 +118,9 @@ func NewClient(token string, unitId string, redconn redis.Conn, conn *websocket.
 		return nil, err
 	}
 	if sceneId == 0 {
+		if _, err := redconn.Do("SET", sceneIdKey, 1); err != nil {
+			return nil, err
+		}
 		sceneId = 1
 	}
 	unitInfo.SceneId = sceneId

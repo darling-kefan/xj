@@ -1,5 +1,12 @@
 package ndscloud
 
+import (
+	"strconv"
+
+	"github.com/darling-kefan/xj/config"
+	"github.com/gomodule/redigo/redis"
+)
+
 var (
 	// 存储最新场景id(kv)
 	// fmt.Sprintf(this, unitId)
@@ -19,3 +26,24 @@ var (
 	// fmt.Sprintf(this, unitId, sceneId)
 	chatKeyFormat string = "nc:chat:his:%s:%d"
 )
+
+// 创建Redis连接
+func connectRedis() (redis.Conn, error) {
+	redconf := config.Config.Redis
+	address := redconf.Host + ":" + strconv.Itoa(redconf.Port)
+	conn, err := redis.Dial("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+	if redconf.Auth != "" {
+		if _, err := conn.Do("AUTH", redconf.Auth); err != nil {
+			conn.Close()
+			return nil, err
+		}
+	}
+	if _, err := conn.Do("SELECT", redconf.DB); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}

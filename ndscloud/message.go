@@ -28,21 +28,23 @@ type LocalRegMsg struct {
 }
 
 type LocalUsrRegItem struct {
-	Uid string `json:"uid"`
-	Nm  string `json:"nm"`
-	Sex string `json:"sex"`
-	Idt string `json:"idt"`
-	Os  string `json:"os"`
-	Vi  string `json:"vi"`
-	Hw  string `json:"hw"`
+	Uid          string `json:"uid"`
+	Nm           string `json:"nm"`
+	Sex          string `json:"sex"`
+	Idt          string `json:"idt"`
+	Os           string `json:"os"`
+	Vi           string `json:"vi"`
+	Hw           string `json:"hw"`
+	RegisteredAt int64  `json:"-"`
 }
 
 type LocalDevRegItem struct {
-	Did string `json:"did"`
-	Nm  string `json:"nm"`
-	Dt  string `json:"dt"`
-	Vi  string `json:"vi"`
-	Hw  string `json:"hw"`
+	Did          string `json:"did"`
+	Nm           string `json:"nm"`
+	Dt           string `json:"dt"`
+	Vi           string `json:"vi"`
+	Hw           string `json:"hw"`
+	RegisteredAt int64  `json:"-"`
 }
 
 // 普通消息Act=6

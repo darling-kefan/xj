@@ -95,6 +95,7 @@ func (c *Client) process(raw []byte) {
 			if message.Act == "2" {
 				// 新增本地终端
 				for _, item := range message.Usr {
+					item.RegisteredAt = time.Now().Unix()
 					c.localUsers.Add(*item)
 					// 推送上线消息
 					instruction := &UsrOnlineMsg{
@@ -112,6 +113,7 @@ func (c *Client) process(raw []byte) {
 					c.hub.inbound <- instruction
 				}
 				for _, item := range message.Dev {
+					item.RegisteredAt = time.Now().Unix()
 					c.localDevices.Add(*item)
 					// 推送上线消息
 					instruction := &DevOnlineMsg{
@@ -131,6 +133,7 @@ func (c *Client) process(raw []byte) {
 				c.localUsers = new(LocalUserSet)
 				c.localDevices = new(LocalDeviceSet)
 				for _, item := range message.Usr {
+					item.RegisteredAt = time.Now().Unix()
 					c.localUsers.Add(*item)
 					// 推送上线消息
 					instruction := &UsrOnlineMsg{
@@ -148,6 +151,7 @@ func (c *Client) process(raw []byte) {
 					c.hub.inbound <- instruction
 				}
 				for _, item := range message.Dev {
+					item.RegisteredAt = time.Now().Unix()
 					c.localDevices.Add(*item)
 					// 推送上线消息
 					instruction := &DevOnlineMsg{
@@ -207,7 +211,7 @@ func (c *Client) process(raw []byte) {
 			c.logout("Failed to hget " + modInsKey)
 			return
 		}
-		log.Printf("debug........... %#v, %#v\n", string(ret), err)
+		// log.Printf("debug........... %#v, %#v\n", string(ret), err)
 
 		if ret == nil {
 			if message.Mod == "" || message.To == "" {
@@ -314,6 +318,46 @@ func (c *Client) process(raw []byte) {
 			log.Printf("[%s] SET %s %s\n", c.id, sceneKey, string(b))
 		} else if stat == "2" {
 			// TODO 结束单元逻辑
+			// 记录单元场景结束时间
+			sceneKey := fmt.Sprintf(sceneKeyFormat, c.unitId, c.unitInfo.SceneId)
+			res, err := redis.Bytes(c.redconn.Do("GET", sceneKey))
+			if err != nil && err != redis.ErrNil {
+				c.logout(err.Error())
+				return
+			}
+			sceneInfo := make(map[string]interface{})
+			if res == nil {
+				sceneInfo = map[string]interface{}{
+					"unit_id":  c.unitId,
+					"scene_id": c.unitInfo.SceneId,
+					"end_time": time.Now().Unix(),
+				}
+			} else {
+				if err := json.Unmarshal(res, &sceneInfo); err != nil {
+					c.logout(err.Error())
+					return
+				}
+				sceneInfo["end_time"] = time.Now().Unix()
+			}
+			b, err := json.Marshal(sceneInfo)
+			if err != nil {
+				c.logout(err.Error())
+				return
+			}
+			if _, err := c.redconn.Do("SET", sceneKey, string(b)); err != nil {
+				c.logout(err.Error())
+				return
+			}
+			c.log(fmt.Sprintf("SET %s %s", sceneKey, string(b)))
+			log.Printf("[%s] SET %s %s\n", c.id, sceneKey, string(b))
+
+			// 自增场景id
+			sceneIdKey := fmt.Sprintf(sceneIdKeyFormat, c.unitId)
+			if _, err := c.redconn.Do("INCR", sceneIdKey); err != nil {
+				c.logout(err.Error())
+				return
+			}
+			log.Printf("[%s] INCR %s\n", c.id, sceneIdKey)
 
 			// 结束课程
 			c.logout("Terminate, end course")
