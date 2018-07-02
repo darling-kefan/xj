@@ -237,6 +237,8 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 			}
 			statData.Factors = append(statData.Factors, factor, factor2, factor3, factor4)
 		}
+	case protocol.LOG_ORDER:
+
 	}
 	return
 }

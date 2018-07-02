@@ -381,13 +381,11 @@ func (c *Client) process(raw []byte) {
 			c.notice("chat message too long")
 			return
 		}
-
 		// 广播文字聊天消息
 		message.CreatedAt = time.Now().Unix()
 		message.Sender = c.id
 		message.Unit = c.unitId
 		c.hub.inbound <- message
-
 		// 持久化文字聊天消息
 		storedMsg, err := json.Marshal(message)
 		if err != nil {
