@@ -10,7 +10,7 @@ import (
 func main() {
 	groupID := ksuid.New().String()
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": "127.0.0.1:5212",
+		"bootstrap.servers": "127.0.0.1:22190",
 		"group.id":          groupID,
 		"auto.offset.reset": "earliest",
 	})
@@ -19,6 +19,8 @@ func main() {
 	}
 
 	c.SubscribeTopics([]string{"nstat.log", "nstat.login.log", "nstat.courseware.log"}, nil)
+
+	fmt.Println("hello world")
 
 	for {
 		msg, err := c.ReadMessage(-1)

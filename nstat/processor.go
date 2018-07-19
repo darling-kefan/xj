@@ -62,6 +62,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 		// 生成用户登录数统计因子
 		factor := &protocol.StatFactor{
 			Stype:  protocol.STAT_COUNT_LOGIN,
+			Oid:    logMsg.Oid,
 			Subkey: logMsg.Uid,
 			Value:  1,
 			Date:   logMsg.CreatedAt.Format("2006-01-02"),
@@ -77,6 +78,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 		}
 		factor2 := &protocol.StatFactor{
 			Stype:  protocol.STAT_COUNT_LOGIN_DISTRICT,
+			Oid:    logMsg.Oid,
 			Sid:    did,
 			Subkey: logMsg.Uid,
 			Value:  1,
@@ -86,6 +88,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 		if cache.IsTeacher(logMsg.Uid) {
 			factor3 := &protocol.StatFactor{
 				Stype:  protocol.STAT_COUNT_LOGIN_TEACHER,
+				Oid:    logMsg.Oid,
 				Sid:    "1",
 				Subkey: logMsg.Uid,
 				Value:  1,
@@ -95,6 +98,7 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 		} else {
 			factor3 := &protocol.StatFactor{
 				Stype:  protocol.STAT_COUNT_LOGIN_STUDENT,
+				Oid:    logMsg.Oid,
 				Sid:    "2",
 				Subkey: logMsg.Uid,
 				Value:  1,
@@ -238,7 +242,43 @@ func (p *processor) handle(logMsg *protocol.LogMsg) (statData *protocol.StatData
 			statData.Factors = append(statData.Factors, factor, factor2, factor3, factor4)
 		}
 	case protocol.LOG_ORDER:
-
+		if logMsg.Act == "add" {
+			// 生成订单总数统计因子
+			factor := &protocol.StatFactor{
+				Stype: protocol.STAT_COUNT_ORDER,
+				Oid:   logMsg.Oid,
+				Value: 1,
+				Sid:   "1", // 新建订单
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
+			}
+			statData.Factors = append(statData.Factors, factor)
+		} else if logMsg.Act == "done" {
+			// 生成订单总数统计因子
+			factor := &protocol.StatFactor{
+				Stype: protocol.STAT_COUNT_ORDER,
+				Oid:   logMsg.Oid,
+				Value: 1,
+				Sid:   "2", // 支付成功(成功订单)
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
+			}
+			// 生成订单总收入统计因子
+			var val int
+			val, err = strconv.Atoi(logMsg.Value)
+			factor2 := &protocol.StatFactor{
+				Stype: protocol.STAT_INCOME_ORDER,
+				Oid:   logMsg.Oid,
+				Value: float64(val),
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
+			}
+			// 生成每日订单总收入统计因子
+			factor3 := &protocol.StatFactor{
+				Stype: protocol.STAT_INCOME_NEW_ORDER,
+				Oid:   logMsg.Oid,
+				Value: float64(val),
+				Date:  logMsg.CreatedAt.Format("2006-01-02"),
+			}
+			statData.Factors = append(statData.Factors, factor, factor2, factor3)
+		}
 	}
 	return
 }

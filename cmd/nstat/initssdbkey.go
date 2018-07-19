@@ -45,11 +45,10 @@ func main() {
 	today := time.Now().Format("20060102")
 	scanLimit := 1000
 	// 待初始化的stype值(用户总数，课程总数，课件总数，占用空间)
-	var stypes []int = []int{1, 21, 41, 42}
+	var stypes []int = []int{1, 21, 41, 42, 51, 52}
 	for _, stype := range stypes {
 		scanStart = fmt.Sprintf("nstat:%d:", stype)
 		scanEnd = fmt.Sprintf("nstat:%d:z", stype)
-	loop:
 		for {
 			resp, err = db.Do("scan", scanStart, scanEnd, scanLimit)
 			if err != nil {
@@ -63,7 +62,7 @@ func main() {
 			for i := 0; i < len(kvs); i = i + 2 {
 				kps = strings.Split(kvs[i], ":")
 				if kps[3] == yesterday {
-					todayKey = fmt.Sprintf("nstat:%d:%s:%s", stype, kps[2], today)
+					todayKey = strings.Replace(kvs[i], yesterday, today, -1)
 					resp, err = db.Do("incr", todayKey, kvs[i+1])
 					if err != nil {
 						log.Fatal(err)
@@ -71,7 +70,6 @@ func main() {
 					if len(resp[1:]) > 0 {
 						log.Printf("incr %s %s : %v\n", todayKey, kvs[i+1], resp)
 					}
-					break loop
 				}
 			}
 			scanStart = kvs[len(kvs)-2]

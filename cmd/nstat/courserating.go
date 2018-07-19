@@ -213,6 +213,8 @@ loop:
 
 		log.Printf("Grading standards: %v", gradeUsers)
 
+		// 根据课程courseId获取机构
+
 		factors := make([]*protocol.StatFactor, 0)
 		for gradeStandard, userCount := range gradeUsers {
 			statFactor := &protocol.StatFactor{

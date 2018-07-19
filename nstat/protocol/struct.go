@@ -94,23 +94,22 @@ func DecodeLogMsg(r io.Reader) (logMsg *LogMsg, err error) {
 type Stype string
 
 const (
-	STAT_COUNT_USER           Stype = "1"  // 用户总数
-	STAT_COUNT_NEW_USER       Stype = "2"  // 新增用户数
-	STAT_COUNT_LOGIN          Stype = "3"  // 用户登录数
-	STAT_COUNT_LOGIN_DISTRICT Stype = "4"  // 每天登录位置数
-	STAT_COUNT_LOGIN_TEACHER  Stype = "5"  // 老师登录数
-	STAT_COUNT_LOGIN_STUDENT  Stype = "6"  // 学生登录数
-	STAT_COUNT_COURSE         Stype = "21" // 课程总数
-	STAT_COUNT_COURSE_USER    Stype = "22" // 课程用户数
-	STAT_RATING_COURSE        Stype = "24" // 课程评分
-	//STAT_RANKING_COURSE_USER Stype = "22" // 用户数排行榜
-	//STAT_AVERAGE_COURSE_USER Stype = "23" // 平均用户数
+	STAT_COUNT_USER            Stype = "1"  // 用户总数
+	STAT_COUNT_NEW_USER        Stype = "2"  // 新增用户数
+	STAT_COUNT_LOGIN           Stype = "3"  // 用户登录数
+	STAT_COUNT_LOGIN_DISTRICT  Stype = "4"  // 每天登录位置数
+	STAT_COUNT_LOGIN_TEACHER   Stype = "5"  // 老师登录数
+	STAT_COUNT_LOGIN_STUDENT   Stype = "6"  // 学生登录数
+	STAT_COUNT_COURSE          Stype = "21" // 课程总数
+	STAT_COUNT_COURSE_USER     Stype = "22" // 课程用户数
+	STAT_RATING_COURSE         Stype = "23" // 课程评分
 	STAT_COUNT_COURSEWARE      Stype = "41" // 课件总数
 	STAT_SIZE_COURSEWARE       Stype = "42" // 课件大小(占用空间)
 	STAT_COUNT_COURSEWARE_TYPE Stype = "43" // 课件类型数量
 	STAT_SIZE_COURSEWARE_TYPE  Stype = "44" // 课件类型大小(占用空间)
 	STAT_COUNT_ORDER           Stype = "51" // 订单总数
-	STAT_INCOME_ORDER          Stype = "52" // 订单收入
+	STAT_INCOME_ORDER          Stype = "52" // 订单总收入
+	STAT_INCOME_NEW_ORDER      Stype = "53" // 每日订单总收入
 )
 
 // 日志统计因子，一条日志对应一个StatData
